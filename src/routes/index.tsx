@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
       { title: "DTDC XPRESS+ — B2B Enterprise Global Logistics" },
       { name: "description", content: "Track B2B freight, get instant rate estimates, and access enterprise-grade global logistics for Merchant-to-Merchant trade." },
       { property: "og:title", content: "DTDC XPRESS+ — B2B Enterprise Global Logistics" },
-      { property: "og:description", content: "Accelerated global logistics for enterprise and B2B merchants." },
+      { property: "og:description", content: "Track B2B freight, get instant rate estimates, and access enterprise-grade global logistics for Merchant-to-Merchant trade." },
     ],
   }),
   component: Home,
