@@ -389,7 +389,7 @@ function AllTab({ shipments, onChange }: { shipments: Shipment[]; onChange: () =
         <table className="w-full text-sm">
           <thead className="bg-slate">
             <tr className="text-left">
-              <Th>Tracking</Th><Th>Sender</Th><Th>Receiver</Th><Th>Route</Th><Th>Status</Th><Th>Type</Th><Th>Weight</Th><Th></Th>
+              <Th>Tracking</Th><Th>Sender</Th><Th>Receiver</Th><Th>Route</Th><Th>Status</Th><Th>Type</Th><Th>Weight</Th><Th>{""}</Th>
             </tr>
           </thead>
           <tbody>
