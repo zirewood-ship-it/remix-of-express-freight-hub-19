@@ -1,0 +1,430 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Lock, Plus, Edit3, ListChecks, Zap, RefreshCw, Search, Trash2, X, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { STATUS_FLOW, type Shipment, type Milestone, listShipments, listMilestones } from "@/lib/shipments";
+
+export const Route = createFileRoute("/admin")({
+  head: () => ({
+    meta: [
+      { title: "Admin Control Center — DTDC XPRESS+" },
+      { name: "description", content: "Operations control center for DTDC XPRESS+ B2B shipment management." },
+      { name: "robots", content: "noindex" },
+    ],
+  }),
+  component: Admin,
+});
+
+const ADMIN_PASSWORD = "dtdc-admin-2026";
+
+function Admin() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("dtdc_admin") === "1") setUnlocked(true);
+  }, []);
+
+  if (!unlocked) {
+    return (
+      <section className="container-x py-24 flex items-center justify-center">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pw === ADMIN_PASSWORD) {
+              sessionStorage.setItem("dtdc_admin", "1");
+              setUnlocked(true); setErr(false);
+            } else { setErr(true); }
+          }}
+          className="w-full max-w-md rounded-xl border border-border bg-white p-8 shadow-lg"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-navy text-navy-foreground">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold text-navy">Admin Control Center</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-widest">Operations Access</div>
+            </div>
+          </div>
+          <div className="mt-6">
+            <label className="text-xs font-semibold text-navy uppercase tracking-wide">Access Password</label>
+            <input
+              autoFocus type="password" value={pw} onChange={(e) => setPw(e.target.value)}
+              placeholder="Enter admin password"
+              className="mt-2 w-full h-11 rounded-md border border-input px-3 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
+            />
+            {err && <div className="mt-2 text-xs text-destructive font-semibold">Incorrect password.</div>}
+          </div>
+          <button className="mt-6 w-full inline-flex items-center justify-center rounded-md bg-red py-2.5 text-sm font-semibold text-red-foreground">
+            Unlock Control Center
+          </button>
+          <div className="mt-4 text-xs text-muted-foreground text-center">
+            Demo password: <span className="font-mono font-semibold">dtdc-admin-2026</span>
+          </div>
+        </form>
+      </section>
+    );
+  }
+
+  return <AdminDashboard onLock={() => { sessionStorage.removeItem("dtdc_admin"); setUnlocked(false); setPw(""); }} />;
+}
+
+type Tab = "create" | "manage" | "all";
+
+function AdminDashboard({ onLock }: { onLock: () => void }) {
+  const [tab, setTab] = useState<Tab>("create");
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function refresh() {
+    setLoading(true);
+    try { setShipments(await listShipments()); } finally { setLoading(false); }
+  }
+  useEffect(() => { refresh(); }, []);
+
+  return (
+    <section className="container-x py-10">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-navy">Admin Control Center</h1>
+          <p className="text-sm text-muted-foreground">Manage consignments and simulate live tracking updates.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={refresh} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </button>
+          <button onClick={onLock} className="inline-flex items-center gap-2 rounded-md bg-navy px-3 py-2 text-sm font-semibold text-navy-foreground">
+            <LogOut className="h-4 w-4" /> Lock
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap border-b border-border">
+        {[
+          { k: "create", label: "Create Consignment", icon: Plus },
+          { k: "manage", label: "Manage Milestones", icon: Edit3 },
+          { k: "all", label: "All Consignments", icon: ListChecks },
+        ].map((t) => (
+          <button
+            key={t.k}
+            onClick={() => setTab(t.k as Tab)}
+            className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 -mb-px transition ${
+              tab === t.k ? "border-red text-navy" : "border-transparent text-muted-foreground hover:text-navy"
+            }`}
+          >
+            <t.icon className="h-4 w-4" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6">
+        {tab === "create" && <CreateTab onCreated={refresh} />}
+        {tab === "manage" && <ManageTab shipments={shipments} onChange={refresh} />}
+        {tab === "all" && <AllTab shipments={shipments} onChange={refresh} />}
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Create Tab ---------- */
+
+function generateAWB(overseas: boolean) {
+  const n = Math.floor(1000 + Math.random() * 9000);
+  return overseas ? `XP-${n}-INT` : `XP-DOM-${n}`;
+}
+
+function CreateTab({ onCreated }: { onCreated: () => void }) {
+  const [form, setForm] = useState({
+    tracking_number: "", sender_company: "", receiver_company: "",
+    origin: "", destination: "", is_overseas: false, status: "Booked" as string,
+    weight_kg: 100, estimated_delivery: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm(f => ({ ...f, [k]: v }));
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    const payload = {
+      ...form,
+      tracking_number: (form.tracking_number || generateAWB(form.is_overseas)).toUpperCase(),
+      estimated_delivery: form.estimated_delivery || null,
+    };
+    const { data, error } = await supabase.from("shipments").insert(payload).select().single();
+    if (error) { setMsg("Error: " + error.message); setBusy(false); return; }
+    await supabase.from("milestones").insert({
+      shipment_id: data.id,
+      location: form.origin,
+      status_text: `Consignment ${form.status.toLowerCase()} — manifest generated`,
+    });
+    setMsg(`✓ Consignment ${payload.tracking_number} created.`);
+    setForm({ tracking_number: "", sender_company: "", receiver_company: "", origin: "", destination: "", is_overseas: false, status: "Booked", weight_kg: 100, estimated_delivery: "" });
+    onCreated(); setBusy(false);
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="rounded-xl border border-border bg-white p-6 md:p-8 grid gap-5 md:grid-cols-2">
+      <F label="Tracking / AWB ID">
+        <div className="flex gap-2">
+          <input value={form.tracking_number} onChange={e => set("tracking_number", e.target.value)} placeholder="Auto-generate or enter manually" className="input" />
+          <button type="button" onClick={() => set("tracking_number", generateAWB(form.is_overseas))} className="rounded-md border border-input px-3 text-xs font-semibold whitespace-nowrap">Auto</button>
+        </div>
+      </F>
+      <F label="Service Type">
+        <div className="flex rounded-md border border-input overflow-hidden">
+          <button type="button" onClick={() => set("is_overseas", false)} className={`flex-1 h-10 text-sm font-semibold ${!form.is_overseas ? "bg-navy text-navy-foreground" : "bg-white"}`}>Domestic Freight</button>
+          <button type="button" onClick={() => set("is_overseas", true)} className={`flex-1 h-10 text-sm font-semibold ${form.is_overseas ? "bg-red text-red-foreground" : "bg-white"}`}>Overseas Cargo</button>
+        </div>
+      </F>
+      <F label="Sender Company"><input required value={form.sender_company} onChange={e => set("sender_company", e.target.value)} className="input" /></F>
+      <F label="Receiver Company"><input required value={form.receiver_company} onChange={e => set("receiver_company", e.target.value)} className="input" /></F>
+      <F label="Origin (City, Country)"><input required value={form.origin} onChange={e => set("origin", e.target.value)} placeholder="e.g. Mumbai, IN" className="input" /></F>
+      <F label="Destination (City, Country)"><input required value={form.destination} onChange={e => set("destination", e.target.value)} placeholder="e.g. Hamburg, DE" className="input" /></F>
+      <F label="Total Weight (kg)"><input required type="number" min={1} value={form.weight_kg} onChange={e => set("weight_kg", Number(e.target.value))} className="input" /></F>
+      <F label="Estimated Delivery Date"><input type="date" value={form.estimated_delivery} onChange={e => set("estimated_delivery", e.target.value)} className="input" /></F>
+      <F label="Initial Status" span2>
+        <select value={form.status} onChange={e => set("status", e.target.value)} className="input">
+          {STATUS_FLOW.map(s => <option key={s}>{s}</option>)}
+        </select>
+      </F>
+      <div className="md:col-span-2 flex items-center gap-3 pt-2 border-t border-border">
+        <button disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-red px-5 py-2.5 text-sm font-semibold text-red-foreground disabled:opacity-60">
+          <Plus className="h-4 w-4" /> Create Consignment
+        </button>
+        {msg && <div className="text-sm font-semibold text-navy">{msg}</div>}
+      </div>
+    </form>
+  );
+}
+
+/* ---------- Manage Tab ---------- */
+
+function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: () => void }) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<string>("");
+  const [newMs, setNewMs] = useState({ location: "", status_text: "", timestamp: "" });
+  const [busy, setBusy] = useState(false);
+
+  const shipment = shipments.find(s => s.id === selectedId);
+  const filtered = shipments.filter(s => s.tracking_number.toLowerCase().includes(q.toLowerCase()));
+
+  useEffect(() => {
+    if (!selectedId) { setMilestones([]); return; }
+    listMilestones(selectedId).then(setMilestones);
+    const s = shipments.find(x => x.id === selectedId);
+    if (s) setStatus(s.status);
+  }, [selectedId, shipments]);
+
+  async function updateStatus() {
+    if (!shipment) return;
+    setBusy(true);
+    await supabase.from("shipments").update({ status }).eq("id", shipment.id);
+    onChange(); setBusy(false);
+  }
+
+  async function addMilestone() {
+    if (!shipment || !newMs.location || !newMs.status_text) return;
+    setBusy(true);
+    await supabase.from("milestones").insert({
+      shipment_id: shipment.id,
+      location: newMs.location,
+      status_text: newMs.status_text,
+      timestamp: newMs.timestamp ? new Date(newMs.timestamp).toISOString() : new Date().toISOString(),
+    });
+    setNewMs({ location: "", status_text: "", timestamp: "" });
+    setMilestones(await listMilestones(shipment.id));
+    setBusy(false);
+  }
+
+  async function addSampleStep() {
+    if (!shipment) return;
+    setBusy(true);
+    const idx = STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase());
+    const nextStatus = STATUS_FLOW[Math.min(idx + 1, STATUS_FLOW.length - 1)];
+    const samples: Record<string, { loc: string; text: string }> = {
+      "Picked Up": { loc: shipment.origin, text: "Picked up from sender facility, en route to origin hub" },
+      "In Transit": { loc: shipment.is_overseas ? "JNPT Mumbai Port" : "Nagpur Interchange Hub", text: "In transit — arrived at regional hub" },
+      "Customs Clearance": { loc: "Frankfurt Customs Hub", text: "Under customs clearance — awaiting inspection" },
+      "Hub Arrival": { loc: shipment.destination, text: "Arrived at destination hub, sorted for last-mile" },
+      "Out for Delivery": { loc: shipment.destination, text: "Out for delivery with local B2B partner" },
+      "Delivered": { loc: shipment.destination, text: "Delivered — POD signed by receiver" },
+    };
+    const sample = samples[nextStatus] ?? { loc: shipment.destination, text: `Status updated to ${nextStatus}` };
+    await supabase.from("shipments").update({ status: nextStatus }).eq("id", shipment.id);
+    await supabase.from("milestones").insert({ shipment_id: shipment.id, location: sample.loc, status_text: sample.text });
+    setStatus(nextStatus);
+    setMilestones(await listMilestones(shipment.id));
+    onChange(); setBusy(false);
+  }
+
+  return (
+    <div className="grid lg:grid-cols-[320px_1fr] gap-6">
+      <aside className="rounded-xl border border-border bg-white p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search tracking ID…" className="input pl-9" />
+        </div>
+        <div className="mt-3 max-h-[500px] overflow-y-auto space-y-1">
+          {filtered.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setSelectedId(s.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-md text-sm ${selectedId === s.id ? "bg-navy text-navy-foreground" : "hover:bg-secondary"}`}
+            >
+              <div className="font-mono font-semibold">{s.tracking_number}</div>
+              <div className={`text-xs ${selectedId === s.id ? "text-white/70" : "text-muted-foreground"}`}>{s.status} · {s.is_overseas ? "Overseas" : "Domestic"}</div>
+            </button>
+          ))}
+          {filtered.length === 0 && <div className="text-sm text-muted-foreground p-3">No shipments.</div>}
+        </div>
+      </aside>
+
+      <div className="space-y-5">
+        {!shipment ? (
+          <div className="rounded-xl border border-border bg-white p-10 text-center text-muted-foreground">Select a consignment to manage.</div>
+        ) : (
+          <>
+            <div className="rounded-xl border border-border bg-white p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="font-mono text-sm font-bold text-navy">{shipment.tracking_number}</div>
+                  <div className="mt-1 font-semibold">{shipment.sender_company} → {shipment.receiver_company}</div>
+                  <div className="text-xs text-muted-foreground">{shipment.origin} → {shipment.destination}</div>
+                </div>
+                <button
+                  onClick={addSampleStep} disabled={busy}
+                  className="inline-flex items-center gap-2 rounded-md bg-red px-4 py-2.5 text-sm font-semibold text-red-foreground disabled:opacity-60"
+                >
+                  <Zap className="h-4 w-4" /> Add Sample Next Step
+                </button>
+              </div>
+              <div className="mt-5 flex flex-wrap items-end gap-3">
+                <F label="Current Status">
+                  <select value={status} onChange={e => setStatus(e.target.value)} className="input">
+                    {STATUS_FLOW.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </F>
+                <button onClick={updateStatus} disabled={busy} className="h-10 rounded-md bg-navy px-4 text-sm font-semibold text-navy-foreground">Update Status</button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-6">
+              <div className="font-bold text-navy mb-4">Add Milestone Event</div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <F label="Current Location"><input value={newMs.location} onChange={e => setNewMs(s => ({ ...s, location: e.target.value }))} placeholder="e.g. Frankfurt Customs Hub" className="input" /></F>
+                <F label="Status Description"><input value={newMs.status_text} onChange={e => setNewMs(s => ({ ...s, status_text: e.target.value }))} placeholder="e.g. Cleared import customs" className="input" /></F>
+                <F label="Date & Time"><input type="datetime-local" value={newMs.timestamp} onChange={e => setNewMs(s => ({ ...s, timestamp: e.target.value }))} className="input" /></F>
+              </div>
+              <button onClick={addMilestone} disabled={busy} className="mt-4 inline-flex items-center gap-2 rounded-md bg-red px-4 py-2.5 text-sm font-semibold text-red-foreground disabled:opacity-60">
+                <Plus className="h-4 w-4" /> Add Milestone
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-6">
+              <div className="font-bold text-navy mb-4">Milestone History ({milestones.length})</div>
+              <ol className="space-y-3">
+                {milestones.slice().reverse().map(m => (
+                  <li key={m.id} className="flex items-start justify-between gap-3 border-b border-border pb-3 last:border-0">
+                    <div>
+                      <div className="text-sm font-semibold">{m.location}</div>
+                      <div className="text-sm text-muted-foreground">{m.status_text}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{new Date(m.timestamp).toLocaleString()}</div>
+                    </div>
+                    <button
+                      onClick={async () => { await supabase.from("milestones").delete().eq("id", m.id); setMilestones(await listMilestones(shipment.id)); }}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label="Delete milestone"
+                    ><X className="h-4 w-4" /></button>
+                  </li>
+                ))}
+                {milestones.length === 0 && <li className="text-sm text-muted-foreground">No milestones yet.</li>}
+              </ol>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- All Tab ---------- */
+
+function AllTab({ shipments, onChange }: { shipments: Shipment[]; onChange: () => void }) {
+  const [filter, setFilter] = useState<"all" | "domestic" | "overseas">("all");
+  const [q, setQ] = useState("");
+  const rows = shipments.filter(s => {
+    if (filter === "domestic" && s.is_overseas) return false;
+    if (filter === "overseas" && !s.is_overseas) return false;
+    if (q && !`${s.tracking_number} ${s.sender_company} ${s.receiver_company}`.toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
+
+  async function del(id: string) {
+    if (!confirm("Delete this consignment and all its milestones?")) return;
+    await supabase.from("shipments").delete().eq("id", id);
+    onChange();
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-white overflow-hidden">
+      <div className="p-4 border-b border-border flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" className="input pl-9" />
+        </div>
+        <div className="flex rounded-md border border-input overflow-hidden text-sm">
+          {(["all", "domestic", "overseas"] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 font-semibold capitalize ${filter === f ? "bg-navy text-navy-foreground" : "bg-white"}`}>{f}</button>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate">
+            <tr className="text-left">
+              <Th>Tracking</Th><Th>Sender</Th><Th>Receiver</Th><Th>Route</Th><Th>Status</Th><Th>Type</Th><Th>Weight</Th><Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(s => (
+              <tr key={s.id} className="border-t border-border hover:bg-secondary/40">
+                <td className="px-4 py-3 font-mono font-semibold text-navy">{s.tracking_number}</td>
+                <td className="px-4 py-3">{s.sender_company}</td>
+                <td className="px-4 py-3">{s.receiver_company}</td>
+                <td className="px-4 py-3 text-muted-foreground">{s.origin} → {s.destination}</td>
+                <td className="px-4 py-3"><span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-navy/10 text-navy">{s.status}</span></td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.is_overseas ? "bg-red/10 text-red" : "bg-navy/10 text-navy"}`}>{s.is_overseas ? "Overseas" : "Domestic"}</span>
+                </td>
+                <td className="px-4 py-3">{s.weight_kg} kg</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => del(s.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">No consignments.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const Th = ({ children }: { children: React.ReactNode }) => <th className="px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">{children}</th>;
+
+function F({ label, children, span2 }: { label: string; children: React.ReactNode; span2?: boolean }) {
+  return (
+    <label className={`block ${span2 ? "md:col-span-2" : ""}`}>
+      <div className="text-xs font-semibold text-navy mb-1.5 uppercase tracking-wide">{label}</div>
+      {children}
+      <style>{`.input{width:100%;border-radius:.375rem;border:1px solid var(--color-input);padding:0 .75rem;font-size:.875rem;background:white;outline:none;height:2.5rem}.input:focus{border-color:var(--color-navy);box-shadow:0 0 0 3px color-mix(in oklab, var(--color-navy) 10%, transparent)}`}</style>
+    </label>
+  );
+}
