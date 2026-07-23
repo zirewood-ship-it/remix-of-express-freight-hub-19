@@ -57,7 +57,7 @@ export function TrackingWidget() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Enter AWB / Tracking ID (e.g. XP-DOM-9901)"
-              className="flex-1 h-12 rounded-md border border-input px-4 text-sm font-medium outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
+              className="flex-1 h-12 rounded-md border border-input px-4 text-sm font-medium text-black outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
             />
             <button
               type="submit"
@@ -75,7 +75,7 @@ export function TrackingWidget() {
               onChange={(e) => setBulk(e.target.value)}
               placeholder="Paste multiple AWB / Tracking IDs (comma, space or newline separated)"
               rows={3}
-              className="w-full rounded-md border border-input px-4 py-3 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
+              className="w-full rounded-md border border-input px-4 py-3 text-sm text-black outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
             />
             <button
               type="submit"
