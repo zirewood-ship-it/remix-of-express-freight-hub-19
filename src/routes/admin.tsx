@@ -211,7 +211,7 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
   const [status, setStatus] = useState<string>("");
   const [newMs, setNewMs] = useState({ location: "", status_text: "", timestamp: "" });
   const [busy, setBusy] = useState(false);
-  const [modal, setModal] = useState<null | "edit" | "invoice" | "share">(null);
+  const [modal, setModal] = useState<null | "edit" | "invoice" | "share" | "charges">(null);
 
   const shipment = shipments.find(s => s.id === selectedId);
   const filtered = shipments.filter(s => s.tracking_number.toLowerCase().includes(q.toLowerCase()));
@@ -310,6 +310,9 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
                   <button onClick={() => setModal("share")} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-xs font-semibold hover:bg-secondary">
                     <Share2 className="h-3.5 w-3.5" /> Share
                   </button>
+                  <button onClick={() => setModal("charges")} className="inline-flex items-center gap-2 rounded-md bg-navy px-3 py-2 text-xs font-semibold text-navy-foreground hover:brightness-110">
+                    <Receipt className="h-3.5 w-3.5" /> Raise Charge
+                  </button>
                   <button
                     onClick={addSampleStep} disabled={busy}
                     className="inline-flex items-center gap-2 rounded-md bg-red px-3 py-2 text-xs font-semibold text-red-foreground disabled:opacity-60"
@@ -331,6 +334,7 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
             {modal === "edit" && <EditShipmentModal shipment={shipment} onClose={() => setModal(null)} onSaved={() => { setModal(null); onChange(); }} />}
             {modal === "invoice" && <InvoiceModal shipment={shipment} milestones={milestones} onClose={() => setModal(null)} />}
             {modal === "share" && <ShareModal shipment={shipment} onClose={() => setModal(null)} />}
+            {modal === "charges" && <RaiseChargeModal shipment={shipment} onClose={() => setModal(null)} onLogged={async () => { setMilestones(await listMilestones(shipment.id)); }} />}
 
             <div className="rounded-xl border border-border bg-white p-6">
               <div className="font-bold text-navy mb-4">Add Milestone Event</div>
