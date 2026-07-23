@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight } from "lucide-react";
+import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket } from "lucide-react";
 import { findShipment, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
 
 type Result = { shipment: Shipment; milestones: Milestone[] } | null;
