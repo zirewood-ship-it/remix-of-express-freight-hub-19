@@ -445,3 +445,209 @@ function F({ label, children, span2 }: { label: string; children: React.ReactNod
     </label>
   );
 }
+
+/* ---------- Modal Shell ---------- */
+
+function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className={`w-full ${wide ? "max-w-3xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl`}>
+        <div className="flex items-center justify-between border-b border-border px-6 py-4 sticky top-0 bg-white">
+          <div className="font-bold text-navy">{title}</div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-navy" aria-label="Close"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Edit Shipment ---------- */
+
+function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({
+    tracking_number: shipment.tracking_number,
+    sender_company: shipment.sender_company,
+    receiver_company: shipment.receiver_company,
+    origin: shipment.origin,
+    destination: shipment.destination,
+    is_overseas: shipment.is_overseas,
+    status: shipment.status,
+    weight_kg: shipment.weight_kg,
+    estimated_delivery: shipment.estimated_delivery ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF(s => ({ ...s, [k]: v }));
+
+  async function save() {
+    setBusy(true); setErr(null);
+    const { error } = await supabase.from("shipments").update({
+      ...f,
+      tracking_number: f.tracking_number.toUpperCase(),
+      estimated_delivery: f.estimated_delivery || null,
+    }).eq("id", shipment.id);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    onSaved();
+  }
+
+  return (
+    <Modal title="Edit Consignment Details" onClose={onClose} wide>
+      <div className="grid gap-4 md:grid-cols-2">
+        <F label="Tracking / AWB ID"><input value={f.tracking_number} onChange={e => set("tracking_number", e.target.value)} className="input" /></F>
+        <F label="Service Type">
+          <div className="flex rounded-md border border-input overflow-hidden">
+            <button type="button" onClick={() => set("is_overseas", false)} className={`flex-1 h-10 text-sm font-semibold ${!f.is_overseas ? "bg-navy text-navy-foreground" : "bg-white"}`}>Domestic</button>
+            <button type="button" onClick={() => set("is_overseas", true)} className={`flex-1 h-10 text-sm font-semibold ${f.is_overseas ? "bg-red text-red-foreground" : "bg-white"}`}>Overseas</button>
+          </div>
+        </F>
+        <F label="Sender Company"><input value={f.sender_company} onChange={e => set("sender_company", e.target.value)} className="input" /></F>
+        <F label="Receiver Company"><input value={f.receiver_company} onChange={e => set("receiver_company", e.target.value)} className="input" /></F>
+        <F label="Origin"><input value={f.origin} onChange={e => set("origin", e.target.value)} className="input" /></F>
+        <F label="Destination"><input value={f.destination} onChange={e => set("destination", e.target.value)} className="input" /></F>
+        <F label="Weight (kg)"><input type="number" min={1} value={f.weight_kg} onChange={e => set("weight_kg", Number(e.target.value))} className="input" /></F>
+        <F label="Estimated Delivery Date"><input type="date" value={f.estimated_delivery} onChange={e => set("estimated_delivery", e.target.value)} className="input" /></F>
+        <F label="Status" span2>
+          <select value={f.status} onChange={e => set("status", e.target.value)} className="input">
+            {STATUS_FLOW.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </F>
+      </div>
+      {err && <div className="mt-4 text-sm text-destructive font-semibold">{err}</div>}
+      <div className="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+        <button onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-semibold">Cancel</button>
+        <button onClick={save} disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-red px-4 py-2 text-sm font-semibold text-red-foreground disabled:opacity-60">
+          <Save className="h-4 w-4" /> Save Changes
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Invoice ---------- */
+
+function InvoiceModal({ shipment, milestones, onClose }: { shipment: Shipment; milestones: Milestone[]; onClose: () => void }) {
+  const invoiceNo = `INV-${shipment.tracking_number}`;
+  const issueDate = new Date().toLocaleDateString();
+  const baseRate = shipment.is_overseas ? 285 : 42; // per kg indicative
+  const subtotal = shipment.weight_kg * baseRate;
+  const fuel = subtotal * 0.14;
+  const gst = (subtotal + fuel) * 0.18;
+  const total = subtotal + fuel + gst;
+  const currency = shipment.is_overseas ? "USD" : "INR";
+  const fmt = (n: number) => `${currency === "USD" ? "$" : "₹"}${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+  function printInvoice() {
+    const html = document.getElementById("invoice-print")?.innerHTML;
+    if (!html) return;
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><title>${invoiceNo}</title>
+      <style>body{font-family:system-ui,sans-serif;color:#0B1C3E;padding:32px;max-width:800px;margin:auto}h1{color:#E31E24;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;font-size:14px}th{background:#0B1C3E;color:white}.tot{font-weight:700}.right{text-align:right}</style>
+      </head><body>${html}</body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+  }
+
+  return (
+    <Modal title="Invoice Preview" onClose={onClose} wide>
+      <div id="invoice-print">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div>
+            <h1 style={{ margin: 0, color: "#E31E24", fontSize: 28 }}>DTDC XPRESS+</h1>
+            <div style={{ fontSize: 12, color: "#64748b" }}>Global B2B Freight & Logistics</div>
+            <div style={{ fontSize: 12, marginTop: 8 }}>help@dtdc.live · overseas@dtdc.live</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 700, color: "#0B1C3E" }}>{invoiceNo}</div>
+            <div style={{ fontSize: 12, color: "#64748b" }}>Issued: {issueDate}</div>
+            <div style={{ fontSize: 12, color: "#64748b" }}>AWB: {shipment.tracking_number}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", color: "#64748b", fontWeight: 700 }}>Bill From</div>
+            <div style={{ fontWeight: 600, marginTop: 4 }}>{shipment.sender_company}</div>
+            <div style={{ fontSize: 13, color: "#64748b" }}>{shipment.origin}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase", color: "#64748b", fontWeight: 700 }}>Bill To</div>
+            <div style={{ fontWeight: 600, marginTop: 4 }}>{shipment.receiver_company}</div>
+            <div style={{ fontSize: 13, color: "#64748b" }}>{shipment.destination}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead><tr><th>Description</th><th className="right" style={{ textAlign: "right" }}>Qty</th><th className="right" style={{ textAlign: "right" }}>Rate</th><th className="right" style={{ textAlign: "right" }}>Amount</th></tr></thead>
+          <tbody>
+            <tr><td>{shipment.is_overseas ? "Overseas Cargo Freight" : "Domestic B2B Freight"} — {shipment.origin} → {shipment.destination}</td><td style={{ textAlign: "right" }}>{shipment.weight_kg} kg</td><td style={{ textAlign: "right" }}>{fmt(baseRate)}</td><td style={{ textAlign: "right" }}>{fmt(subtotal)}</td></tr>
+            <tr><td>Fuel & handling surcharge (14%)</td><td></td><td></td><td style={{ textAlign: "right" }}>{fmt(fuel)}</td></tr>
+            <tr><td>GST / Duties (18%)</td><td></td><td></td><td style={{ textAlign: "right" }}>{fmt(gst)}</td></tr>
+            <tr className="tot"><td colSpan={3} style={{ textAlign: "right", fontWeight: 700 }}>Total Payable</td><td style={{ textAlign: "right", fontWeight: 700, color: "#E31E24" }}>{fmt(total)}</td></tr>
+          </tbody>
+        </table>
+
+        <div style={{ marginTop: 20, fontSize: 12, color: "#64748b" }}>
+          Payment terms: Net 15 days. Current shipment status: <strong style={{ color: "#0B1C3E" }}>{shipment.status}</strong>. Total milestones logged: {milestones.length}.
+        </div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+        <button onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-semibold">Close</button>
+        <button onClick={printInvoice} className="inline-flex items-center gap-2 rounded-md bg-navy px-4 py-2 text-sm font-semibold text-navy-foreground">
+          <Printer className="h-4 w-4" /> Print / Save PDF
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------- Share ---------- */
+
+function ShareModal({ shipment, onClose }: { shipment: Shipment; onClose: () => void }) {
+  const url = typeof window !== "undefined" ? `${window.location.origin}/?track=${encodeURIComponent(shipment.tracking_number)}` : "";
+  const msg = `Tracking update from DTDC XPRESS+
+AWB: ${shipment.tracking_number}
+${shipment.sender_company} → ${shipment.receiver_company}
+Route: ${shipment.origin} → ${shipment.destination}
+Current status: ${shipment.status}
+Track live: ${url}`;
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try { await navigator.clipboard.writeText(msg); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
+  }
+  async function nativeShare() {
+    if (navigator.share) { try { await navigator.share({ title: `DTDC XPRESS+ ${shipment.tracking_number}`, text: msg, url }); } catch {} }
+    else copy();
+  }
+
+  const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  const mail = `mailto:?subject=${encodeURIComponent(`DTDC XPRESS+ Tracking ${shipment.tracking_number}`)}&body=${encodeURIComponent(msg)}`;
+
+  return (
+    <Modal title="Share Tracking & Status" onClose={onClose}>
+      <div className="text-sm text-muted-foreground">Send the current shipment status and live tracking link to your customer.</div>
+      <div className="mt-4 rounded-md border border-border bg-slate/40 p-3 text-xs whitespace-pre-wrap font-mono text-navy">{msg}</div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button onClick={copy} className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-white px-3 py-2.5 text-sm font-semibold hover:bg-secondary">
+          <Copy className="h-4 w-4" /> {copied ? "Copied!" : "Copy message"}
+        </button>
+        <button onClick={nativeShare} className="inline-flex items-center justify-center gap-2 rounded-md border border-input bg-white px-3 py-2.5 text-sm font-semibold hover:bg-secondary">
+          <Share2 className="h-4 w-4" /> Native share
+        </button>
+        <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#25D366] px-3 py-2.5 text-sm font-semibold text-white">
+          <MessageCircle className="h-4 w-4" /> WhatsApp
+        </a>
+        <a href={mail} className="inline-flex items-center justify-center gap-2 rounded-md bg-navy px-3 py-2.5 text-sm font-semibold text-navy-foreground">
+          <Mail className="h-4 w-4" /> Email
+        </a>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <input readOnly value={url} className="input flex-1 font-mono text-xs" />
+        <button onClick={async () => { await navigator.clipboard.writeText(url); }} className="rounded-md border border-input px-3 py-2 text-xs font-semibold">Copy link</button>
+      </div>
+    </Modal>
+  );
+}
