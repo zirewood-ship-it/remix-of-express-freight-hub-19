@@ -257,3 +257,102 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
     </div>
   );
 }
+
+function ExpediteCTA({ shipment }: { shipment: Shipment }) {
+  const status = shipment.status.toLowerCase();
+  const awb = shipment.tracking_number;
+
+  type CTA = { title: string; blurb: string; label: string; icon: typeof Zap; email: string; subject: string; accent: "red" | "navy" };
+  let cta: CTA;
+
+  if (status.includes("custom")) {
+    cta = {
+      title: "Stuck at customs?",
+      blurb: "Escalate to our licensed customs brokers for priority clearance, duty pre-payment and document expediting.",
+      label: "Faster Customs Clearance",
+      icon: ShieldCheck,
+      email: "overseas@dtdc.live",
+      subject: `Priority Customs Clearance — ${awb}`,
+      accent: "red",
+    };
+  } else if (status.includes("booked")) {
+    cta = {
+      title: "Need urgent pickup?",
+      blurb: "Upgrade to same-day pickup with our priority freight desk.",
+      label: "Request Faster Pickup",
+      icon: Rocket,
+      email: shipment.is_overseas ? "overseas@dtdc.live" : "help@dtdc.live",
+      subject: `Priority Pickup Request — ${awb}`,
+      accent: "red",
+    };
+  } else if (status.includes("transit") || status.includes("hub")) {
+    cta = {
+      title: "Expedite transit",
+      blurb: "Switch to next-flight-out or dedicated line-haul to shave transit time.",
+      label: "Expedite This Shipment",
+      icon: Zap,
+      email: shipment.is_overseas ? "overseas@dtdc.live" : "help@dtdc.live",
+      subject: `Expedite Transit — ${awb}`,
+      accent: "red",
+    };
+  } else if (status.includes("out for delivery")) {
+    cta = {
+      title: "Need it sooner today?",
+      blurb: "Request priority last-mile slot with our dispatch team.",
+      label: "Priority Delivery Slot",
+      icon: Truck,
+      email: "help@dtdc.live",
+      subject: `Priority Last-Mile — ${awb}`,
+      accent: "red",
+    };
+  } else if (status.includes("delivered")) {
+    cta = {
+      title: "Shipment delivered",
+      blurb: "Download the proof of delivery or raise a post-delivery query.",
+      label: "Request POD & Invoice",
+      icon: FileCheck2,
+      email: shipment.is_overseas ? "overseas@dtdc.live" : "help@dtdc.live",
+      subject: `POD Request — ${awb}`,
+      accent: "navy",
+    };
+  } else {
+    cta = {
+      title: "Need to speed things up?",
+      blurb: "Talk to a live specialist to accelerate this consignment.",
+      label: "Fast-Track This Shipment",
+      icon: Zap,
+      email: shipment.is_overseas ? "overseas@dtdc.live" : "help@dtdc.live",
+      subject: `Fast-Track Request — ${awb}`,
+      accent: "red",
+    };
+  }
+
+  const body = `Hello DTDC XPRESS+ team,%0D%0A%0D%0APlease expedite the following consignment:%0D%0A- AWB: ${awb}%0D%0A- Route: ${shipment.origin} → ${shipment.destination}%0D%0A- Current status: ${shipment.status}%0D%0A%0D%0AThanks.`;
+  const href = `mailto:${cta.email}?subject=${encodeURIComponent(cta.subject)}&body=${body}`;
+  const Icon = cta.icon;
+
+  return (
+    <div className={`border-t border-border p-5 md:p-6 ${cta.accent === "red" ? "bg-red/5" : "bg-navy/5"}`}>
+      <div className="flex flex-col md:flex-row md:items-center gap-4 md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className={`h-10 w-10 shrink-0 rounded-md flex items-center justify-center ${cta.accent === "red" ? "bg-red text-red-foreground" : "bg-navy text-navy-foreground"}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-bold text-navy">{cta.title}</div>
+            <div className="text-xs text-muted-foreground max-w-xl">{cta.blurb}</div>
+          </div>
+        </div>
+        <a
+          href={href}
+          className={`inline-flex items-center justify-center gap-2 rounded-md px-5 h-11 text-sm font-semibold whitespace-nowrap ${
+            cta.accent === "red" ? "bg-red text-red-foreground hover:brightness-110" : "bg-navy text-navy-foreground hover:brightness-110"
+          }`}
+        >
+          <Icon className="h-4 w-4" /> {cta.label}
+          <ArrowRight className="h-4 w-4" />
+        </a>
+      </div>
+    </div>
+  );
+}
