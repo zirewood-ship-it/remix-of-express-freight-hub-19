@@ -298,13 +298,25 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
                   <div className="font-mono text-sm font-bold text-navy">{shipment.tracking_number}</div>
                   <div className="mt-1 font-semibold">{shipment.sender_company} → {shipment.receiver_company}</div>
                   <div className="text-xs text-muted-foreground">{shipment.origin} → {shipment.destination}</div>
+                  {shipment.estimated_delivery && <div className="text-xs text-muted-foreground mt-1">ETA: {new Date(shipment.estimated_delivery).toLocaleDateString()}</div>}
                 </div>
-                <button
-                  onClick={addSampleStep} disabled={busy}
-                  className="inline-flex items-center gap-2 rounded-md bg-red px-4 py-2.5 text-sm font-semibold text-red-foreground disabled:opacity-60"
-                >
-                  <Zap className="h-4 w-4" /> Add Sample Next Step
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setModal("edit")} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-xs font-semibold hover:bg-secondary">
+                    <Edit3 className="h-3.5 w-3.5" /> Edit Details
+                  </button>
+                  <button onClick={() => setModal("invoice")} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-xs font-semibold hover:bg-secondary">
+                    <FileText className="h-3.5 w-3.5" /> Invoice
+                  </button>
+                  <button onClick={() => setModal("share")} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-xs font-semibold hover:bg-secondary">
+                    <Share2 className="h-3.5 w-3.5" /> Share
+                  </button>
+                  <button
+                    onClick={addSampleStep} disabled={busy}
+                    className="inline-flex items-center gap-2 rounded-md bg-red px-3 py-2 text-xs font-semibold text-red-foreground disabled:opacity-60"
+                  >
+                    <Zap className="h-3.5 w-3.5" /> Sample Next Step
+                  </button>
+                </div>
               </div>
               <div className="mt-5 flex flex-wrap items-end gap-3">
                 <F label="Current Status">
@@ -315,6 +327,10 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
                 <button onClick={updateStatus} disabled={busy} className="h-10 rounded-md bg-navy px-4 text-sm font-semibold text-navy-foreground">Update Status</button>
               </div>
             </div>
+
+            {modal === "edit" && <EditShipmentModal shipment={shipment} onClose={() => setModal(null)} onSaved={() => { setModal(null); onChange(); }} />}
+            {modal === "invoice" && <InvoiceModal shipment={shipment} milestones={milestones} onClose={() => setModal(null)} />}
+            {modal === "share" && <ShareModal shipment={shipment} onClose={() => setModal(null)} />}
 
             <div className="rounded-xl border border-border bg-white p-6">
               <div className="font-bold text-navy mb-4">Add Milestone Event</div>
