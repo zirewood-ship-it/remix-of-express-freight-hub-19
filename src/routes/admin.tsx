@@ -441,7 +441,7 @@ function F({ label, children, span2 }: { label: string; children: React.ReactNod
     <label className={`block ${span2 ? "md:col-span-2" : ""}`}>
       <div className="text-xs font-semibold text-navy mb-1.5 uppercase tracking-wide">{label}</div>
       {children}
-      <style>{`.input{width:100%;border-radius:.375rem;border:1px solid var(--color-input);padding:0 .75rem;font-size:.875rem;background:white;outline:none;height:2.5rem}.input:focus{border-color:var(--color-navy);box-shadow:0 0 0 3px color-mix(in oklab, var(--color-navy) 10%, transparent)}`}</style>
+      <style>{`.input{width:100%;border-radius:.375rem;border:1px solid var(--color-input);padding:0 .75rem;font-size:.875rem;background:white;color:black;outline:none;height:2.5rem}.input:focus{border-color:var(--color-navy);box-shadow:0 0 0 3px color-mix(in oklab, var(--color-navy) 10%, transparent)}`}</style>
     </label>
   );
 }
