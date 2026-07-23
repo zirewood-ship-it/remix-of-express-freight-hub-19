@@ -57,7 +57,7 @@ export function TrackingWidget() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Enter AWB / Tracking ID (e.g. XP-DOM-9901)"
-              className="flex-1 h-12 rounded-md border border-input px-4 text-sm font-medium outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
+              className="flex-1 h-12 rounded-md border border-input px-4 text-sm font-medium text-black outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
             />
             <button
               type="submit"
