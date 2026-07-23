@@ -211,6 +211,7 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
   const [status, setStatus] = useState<string>("");
   const [newMs, setNewMs] = useState({ location: "", status_text: "", timestamp: "" });
   const [busy, setBusy] = useState(false);
+  const [modal, setModal] = useState<null | "edit" | "invoice" | "share">(null);
 
   const shipment = shipments.find(s => s.id === selectedId);
   const filtered = shipments.filter(s => s.tracking_number.toLowerCase().includes(q.toLowerCase()));
