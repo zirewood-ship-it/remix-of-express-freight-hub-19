@@ -655,3 +655,201 @@ Track live: ${url}`;
     </Modal>
   );
 }
+
+/* ---------- Raise Charge ---------- */
+
+type ChargeKey = "customs" | "import_duty" | "storage" | "docs" | "handling" | "insurance" | "lastmile" | "reweigh" | "detention";
+
+const CHARGE_CATALOG: Record<ChargeKey, { label: string; hint: string; defaultAmt: (s: Shipment) => number }> = {
+  customs:     { label: "Customs Clearance Fee",     hint: "Broker + inspection charges",         defaultAmt: (s) => s.is_overseas ? 120 : 0 },
+  import_duty: { label: "Import Duty",               hint: "Country-specific duty (auto-est.)",   defaultAmt: (s) => s.is_overseas ? Math.round(s.weight_kg * 4.5) : 0 },
+  storage:     { label: "Storage / Demurrage",       hint: "Per day at bonded warehouse",         defaultAmt: () => 25 },
+  docs:        { label: "Documentation Fee",         hint: "BoE / AWB / COO preparation",         defaultAmt: () => 18 },
+  handling:    { label: "Special Handling",          hint: "Hazmat / fragile / oversize",         defaultAmt: () => 35 },
+  insurance:   { label: "Cargo Insurance",           hint: "All-risk coverage (0.5% of value)",   defaultAmt: () => 40 },
+  lastmile:    { label: "Last-Mile Surcharge",       hint: "Remote / tail-lift delivery",         defaultAmt: () => 22 },
+  reweigh:     { label: "Reweigh / Volumetric Adj.", hint: "Chargeable-weight correction",        defaultAmt: (s) => Math.round(s.weight_kg * 0.8) },
+  detention:   { label: "Detention Charges",         hint: "Container / vehicle detention",       defaultAmt: () => 60 },
+};
+
+const COUNTRY_DUTY: Record<string, number> = {
+  "United States": 8.5, "United Kingdom": 12, "Germany": 19, "France": 20, "Netherlands": 21,
+  "UAE": 5, "Saudi Arabia": 15, "Singapore": 7, "Australia": 10, "Japan": 10,
+  "China": 13, "India": 18, "Canada": 5, "Brazil": 22, "South Africa": 15,
+};
+
+function RaiseChargeModal({ shipment, onClose, onLogged }: { shipment: Shipment; onClose: () => void; onLogged: () => void }) {
+  const currency = shipment.is_overseas ? "USD" : "INR";
+  const sym = currency === "USD" ? "$" : "₹";
+  const fmt = (n: number) => `${sym}${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+  const [country, setCountry] = useState<string>(Object.keys(COUNTRY_DUTY)[0]);
+  const [cargoValue, setCargoValue] = useState<number>(2500);
+  const [notes, setNotes] = useState("");
+  const [items, setItems] = useState<Record<ChargeKey, { on: boolean; amt: number; qty: number }>>(() => {
+    const init = {} as Record<ChargeKey, { on: boolean; amt: number; qty: number }>;
+    (Object.keys(CHARGE_CATALOG) as ChargeKey[]).forEach(k => {
+      init[k] = { on: false, amt: CHARGE_CATALOG[k].defaultAmt(shipment), qty: 1 };
+    });
+    return init;
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  function setItem(k: ChargeKey, patch: Partial<{ on: boolean; amt: number; qty: number }>) {
+    setItems(s => ({ ...s, [k]: { ...s[k], ...patch } }));
+  }
+
+  // recompute import duty when country/cargoValue changes
+  const dutyPct = COUNTRY_DUTY[country] ?? 10;
+  const dutyEstimate = Math.round(cargoValue * (dutyPct / 100));
+
+  const active = (Object.keys(items) as ChargeKey[]).filter(k => items[k].on);
+  const subtotal = active.reduce((sum, k) => {
+    const amt = k === "import_duty" ? dutyEstimate : items[k].amt;
+    return sum + amt * items[k].qty;
+  }, 0);
+  const gst = subtotal * 0.18;
+  const total = subtotal + gst;
+
+  async function logAsMilestone() {
+    if (!active.length) { setMsg("Select at least one charge."); return; }
+    setBusy(true); setMsg(null);
+    const summary = active.map(k => `${CHARGE_CATALOG[k].label}: ${fmt((k === "import_duty" ? dutyEstimate : items[k].amt) * items[k].qty)}`).join(" · ");
+    await supabase.from("milestones").insert({
+      shipment_id: shipment.id,
+      location: shipment.destination,
+      status_text: `Additional charges raised — ${summary}. Total ${fmt(total)}${notes ? ` · ${notes}` : ""}`,
+    });
+    setBusy(false);
+    setMsg(`✓ Charges logged to shipment timeline (${fmt(total)}).`);
+    onLogged();
+  }
+
+  function printCharge() {
+    const html = document.getElementById("charge-print")?.innerHTML;
+    if (!html) return;
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(`<!doctype html><html><head><title>Charge Note ${shipment.tracking_number}</title>
+      <style>body{font-family:system-ui,sans-serif;color:#0B1C3E;padding:32px;max-width:800px;margin:auto}h1{color:#E31E24;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;font-size:14px}th{background:#0B1C3E;color:white}.right{text-align:right}</style>
+      </head><body>${html}</body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+  }
+
+  return (
+    <Modal title="Raise Additional Charges" onClose={onClose} wide>
+      <div className="text-sm text-muted-foreground">
+        Add extra billable line items such as customs clearance, country-specific import duties, storage, documentation and more. Log to the shipment timeline or print a charge note for the customer.
+      </div>
+
+      {shipment.is_overseas && (
+        <div className="mt-5 grid gap-4 md:grid-cols-2 rounded-lg border border-border bg-slate/40 p-4">
+          <F label="Destination Country (for import duty)">
+            <select value={country} onChange={e => setCountry(e.target.value)} className="input">
+              {Object.entries(COUNTRY_DUTY).map(([c, p]) => <option key={c} value={c}>{c} — {p}% duty</option>)}
+            </select>
+          </F>
+          <F label={`Declared Cargo Value (${currency})`}>
+            <input type="number" min={0} value={cargoValue} onChange={e => setCargoValue(Number(e.target.value))} className="input" />
+          </F>
+          <div className="md:col-span-2 text-xs text-muted-foreground">
+            Estimated import duty for <strong className="text-navy">{country}</strong> @ {dutyPct}% = <strong className="text-red">{fmt(dutyEstimate)}</strong>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-2">
+        {(Object.keys(CHARGE_CATALOG) as ChargeKey[]).map(k => {
+          const meta = CHARGE_CATALOG[k];
+          const row = items[k];
+          const isDuty = k === "import_duty";
+          const amt = isDuty ? dutyEstimate : row.amt;
+          return (
+            <div key={k} className={`rounded-md border p-3 flex flex-wrap items-center gap-3 ${row.on ? "border-navy bg-navy/5" : "border-border bg-white"}`}>
+              <label className="flex items-center gap-2 flex-1 min-w-[220px] cursor-pointer">
+                <input type="checkbox" checked={row.on} onChange={e => setItem(k, { on: e.target.checked })} className="h-4 w-4 accent-red" />
+                <div>
+                  <div className="text-sm font-semibold text-navy">{meta.label}</div>
+                  <div className="text-xs text-muted-foreground">{meta.hint}</div>
+                </div>
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase">Amt ({currency})</div>
+                <input
+                  type="number" min={0} value={amt} disabled={isDuty}
+                  onChange={e => setItem(k, { amt: Number(e.target.value) })}
+                  className="input !h-9 !w-28 disabled:opacity-60"
+                />
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase">Qty</div>
+                <input
+                  type="number" min={1} value={row.qty}
+                  onChange={e => setItem(k, { qty: Math.max(1, Number(e.target.value)) })}
+                  className="input !h-9 !w-16"
+                />
+                <div className="w-24 text-right text-sm font-bold text-navy">{fmt(amt * row.qty)}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4">
+        <F label="Notes (optional)">
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Awaiting BoE from consignee" className="input" />
+        </F>
+      </div>
+
+      <div id="charge-print" className="mt-5 rounded-lg border border-border p-4 bg-white">
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <h1 style={{ margin: 0, color: "#E31E24", fontSize: 22 }}>DTDC XPRESS+ — Charge Note</h1>
+            <div style={{ fontSize: 12, color: "#64748b" }}>AWB {shipment.tracking_number} · {shipment.origin} → {shipment.destination}</div>
+          </div>
+          <div style={{ fontSize: 12, color: "#64748b", textAlign: "right" }}>{new Date().toLocaleDateString()}</div>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", padding: 6, background: "#0B1C3E", color: "white", fontSize: 12 }}>Charge</th>
+              <th style={{ textAlign: "right", padding: 6, background: "#0B1C3E", color: "white", fontSize: 12 }}>Rate</th>
+              <th style={{ textAlign: "right", padding: 6, background: "#0B1C3E", color: "white", fontSize: 12 }}>Qty</th>
+              <th style={{ textAlign: "right", padding: 6, background: "#0B1C3E", color: "white", fontSize: 12 }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {active.length === 0 && <tr><td colSpan={4} style={{ padding: 10, color: "#64748b", fontSize: 13 }}>No charges selected.</td></tr>}
+            {active.map(k => {
+              const amt = k === "import_duty" ? dutyEstimate : items[k].amt;
+              const label = k === "import_duty" ? `${CHARGE_CATALOG[k].label} (${country} @ ${dutyPct}%)` : CHARGE_CATALOG[k].label;
+              return (
+                <tr key={k}>
+                  <td style={{ padding: 6, borderBottom: "1px solid #e5e7eb", fontSize: 13 }}>{label}</td>
+                  <td style={{ padding: 6, textAlign: "right", borderBottom: "1px solid #e5e7eb", fontSize: 13 }}>{fmt(amt)}</td>
+                  <td style={{ padding: 6, textAlign: "right", borderBottom: "1px solid #e5e7eb", fontSize: 13 }}>{items[k].qty}</td>
+                  <td style={{ padding: 6, textAlign: "right", borderBottom: "1px solid #e5e7eb", fontSize: 13 }}>{fmt(amt * items[k].qty)}</td>
+                </tr>
+              );
+            })}
+            <tr><td colSpan={3} style={{ padding: 6, textAlign: "right", fontSize: 13 }}>Subtotal</td><td style={{ padding: 6, textAlign: "right", fontSize: 13 }}>{fmt(subtotal)}</td></tr>
+            <tr><td colSpan={3} style={{ padding: 6, textAlign: "right", fontSize: 13 }}>GST / Tax (18%)</td><td style={{ padding: 6, textAlign: "right", fontSize: 13 }}>{fmt(gst)}</td></tr>
+            <tr><td colSpan={3} style={{ padding: 8, textAlign: "right", fontWeight: 700 }}>Total Payable</td><td style={{ padding: 8, textAlign: "right", fontWeight: 700, color: "#E31E24" }}>{fmt(total)}</td></tr>
+          </tbody>
+        </table>
+        {notes && <div style={{ marginTop: 10, fontSize: 12, color: "#64748b" }}>Notes: {notes}</div>}
+      </div>
+
+      {msg && <div className="mt-4 text-sm font-semibold text-navy">{msg}</div>}
+
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+        <button onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-semibold">Close</button>
+        <button onClick={printCharge} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-4 py-2 text-sm font-semibold">
+          <Printer className="h-4 w-4" /> Print Charge Note
+        </button>
+        <button onClick={logAsMilestone} disabled={busy || active.length === 0} className="inline-flex items-center gap-2 rounded-md bg-red px-4 py-2 text-sm font-semibold text-red-foreground disabled:opacity-60">
+          <Receipt className="h-4 w-4" /> Log to Timeline · {fmt(total)}
+        </button>
+      </div>
+    </Modal>
+  );
+}
