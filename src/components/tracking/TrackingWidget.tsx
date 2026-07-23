@@ -176,7 +176,10 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
         </div>
       </div>
 
+      <ExpediteCTA shipment={shipment} />
+
       <div className="grid md:grid-cols-3">
+
         <div className="md:col-span-2 p-5 md:p-6">
           <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Milestone Timeline</div>
           <div className="relative">
