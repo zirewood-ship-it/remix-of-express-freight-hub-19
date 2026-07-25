@@ -488,17 +488,17 @@ function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment;
   async function save() {
     setBusy(true); setErr(null);
     const { booking_date, ...rest } = f;
-    const payload: Record<string, unknown> = {
+    const payload = {
       ...rest,
       tracking_number: f.tracking_number.toUpperCase(),
       estimated_delivery: f.estimated_delivery || null,
-    };
+    } as Parameters<ReturnType<typeof supabase.from<"shipments">>["update"]>[0];
     if (booking_date) {
       const orig = shipment.created_at ? new Date(shipment.created_at) : new Date();
       const [y, m, d] = booking_date.split("-").map(Number);
       const next = new Date(orig);
       next.setFullYear(y, (m ?? 1) - 1, d ?? 1);
-      payload.created_at = next.toISOString();
+      (payload as { created_at?: string }).created_at = next.toISOString();
     }
     const { error } = await supabase.from("shipments").update(payload).eq("id", shipment.id);
     setBusy(false);
