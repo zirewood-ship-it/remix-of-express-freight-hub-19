@@ -479,6 +479,7 @@ function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment;
     status: shipment.status,
     weight_kg: shipment.weight_kg,
     estimated_delivery: shipment.estimated_delivery ?? "",
+    booking_date: shipment.created_at ? shipment.created_at.slice(0, 10) : "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -486,11 +487,20 @@ function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment;
 
   async function save() {
     setBusy(true); setErr(null);
-    const { error } = await supabase.from("shipments").update({
-      ...f,
+    const { booking_date, ...rest } = f;
+    const payload: Record<string, unknown> = {
+      ...rest,
       tracking_number: f.tracking_number.toUpperCase(),
       estimated_delivery: f.estimated_delivery || null,
-    }).eq("id", shipment.id);
+    };
+    if (booking_date) {
+      const orig = shipment.created_at ? new Date(shipment.created_at) : new Date();
+      const [y, m, d] = booking_date.split("-").map(Number);
+      const next = new Date(orig);
+      next.setFullYear(y, (m ?? 1) - 1, d ?? 1);
+      payload.created_at = next.toISOString();
+    }
+    const { error } = await supabase.from("shipments").update(payload).eq("id", shipment.id);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     onSaved();
@@ -511,6 +521,7 @@ function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment;
         <F label="Origin"><input value={f.origin} onChange={e => set("origin", e.target.value)} className="input" /></F>
         <F label="Destination"><input value={f.destination} onChange={e => set("destination", e.target.value)} className="input" /></F>
         <F label="Weight (kg)"><input type="number" min={1} value={f.weight_kg} onChange={e => set("weight_kg", Number(e.target.value))} className="input" /></F>
+        <F label="Booking Date"><input type="date" value={f.booking_date} onChange={e => set("booking_date", e.target.value)} className="input" /></F>
         <F label="Estimated Delivery Date"><input type="date" value={f.estimated_delivery} onChange={e => set("estimated_delivery", e.target.value)} className="input" /></F>
         <F label="Status" span2>
           <select value={f.status} onChange={e => set("status", e.target.value)} className="input">
