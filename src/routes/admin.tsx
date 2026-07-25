@@ -546,8 +546,10 @@ function EditShipmentModal({ shipment, onClose, onSaved }: { shipment: Shipment;
 function InvoiceModal({ shipment, milestones, onClose }: { shipment: Shipment; milestones: Milestone[]; onClose: () => void }) {
   const invoiceNo = `INV-${shipment.tracking_number}`;
   const issueDate = new Date().toLocaleDateString();
-  const baseRate = shipment.is_overseas ? 285 : 42; // per kg indicative
-  const subtotal = shipment.weight_kg * baseRate;
+  const bookingDate = shipment.created_at ? new Date(shipment.created_at).toLocaleDateString() : issueDate;
+  const [rate, setRate] = useState<number>(shipment.is_overseas ? 285 : 42);
+  const [payStatus, setPayStatus] = useState<"paid" | "unpaid">("unpaid");
+  const subtotal = shipment.weight_kg * rate;
   const fuel = subtotal * 0.14;
   const gst = (subtotal + fuel) * 0.18;
   const total = subtotal + fuel + gst;
@@ -560,13 +562,25 @@ function InvoiceModal({ shipment, milestones, onClose }: { shipment: Shipment; m
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) return;
     w.document.write(`<!doctype html><html><head><title>${invoiceNo}</title>
-      <style>body{font-family:system-ui,sans-serif;color:#0B1C3E;padding:32px;max-width:800px;margin:auto}h1{color:#E31E24;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;font-size:14px}th{background:#0B1C3E;color:white}.tot{font-weight:700}.right{text-align:right}</style>
+      <style>body{font-family:system-ui,sans-serif;color:#0B1C3E;padding:32px;max-width:800px;margin:auto}h1{color:#E31E24;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{text-align:left;padding:8px;border-bottom:1px solid #e5e7eb;font-size:14px}th{background:#0B1C3E;color:white}.tot{font-weight:700}.right{text-align:right}.badge{display:inline-block;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.paid{background:#dcfce7;color:#166534;border:1px solid #16a34a}.unpaid{background:#fee2e2;color:#991b1b;border:1px solid #dc2626}</style>
       </head><body>${html}</body></html>`);
     w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
   }
 
   return (
     <Modal title="Invoice Preview" onClose={onClose} wide>
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 rounded-md border border-border bg-slate/40 p-4">
+        <F label={`Rate per kg (${currency})`}>
+          <input type="number" min={0} step="0.01" value={rate} onChange={e => setRate(Number(e.target.value) || 0)} className="input" />
+        </F>
+        <F label="Payment Status">
+          <div className="flex rounded-md border border-input overflow-hidden">
+            <button type="button" onClick={() => setPayStatus("unpaid")} className={`flex-1 h-10 text-sm font-semibold ${payStatus === "unpaid" ? "bg-red text-red-foreground" : "bg-white"}`}>Unpaid</button>
+            <button type="button" onClick={() => setPayStatus("paid")} className={`flex-1 h-10 text-sm font-semibold ${payStatus === "paid" ? "bg-navy text-navy-foreground" : "bg-white"}`}>Paid</button>
+          </div>
+        </F>
+      </div>
+
       <div id="invoice-print">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
           <div>
@@ -576,8 +590,17 @@ function InvoiceModal({ shipment, milestones, onClose }: { shipment: Shipment; m
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 700, color: "#0B1C3E" }}>{invoiceNo}</div>
+            <div style={{ fontSize: 12, color: "#64748b" }}>Booking Date: {bookingDate}</div>
             <div style={{ fontSize: 12, color: "#64748b" }}>Issued: {issueDate}</div>
             <div style={{ fontSize: 12, color: "#64748b" }}>AWB: {shipment.tracking_number}</div>
+            <div style={{ marginTop: 8 }}>
+              <span className={`badge ${payStatus}`} style={{
+                display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+                background: payStatus === "paid" ? "#dcfce7" : "#fee2e2",
+                color: payStatus === "paid" ? "#166534" : "#991b1b",
+                border: `1px solid ${payStatus === "paid" ? "#16a34a" : "#dc2626"}`,
+              }}>{payStatus}</span>
+            </div>
           </div>
         </div>
 
@@ -597,7 +620,7 @@ function InvoiceModal({ shipment, milestones, onClose }: { shipment: Shipment; m
         <table>
           <thead><tr><th>Description</th><th className="right" style={{ textAlign: "right" }}>Qty</th><th className="right" style={{ textAlign: "right" }}>Rate</th><th className="right" style={{ textAlign: "right" }}>Amount</th></tr></thead>
           <tbody>
-            <tr><td>{shipment.is_overseas ? "Overseas Cargo Freight" : "Domestic B2B Freight"} — {shipment.origin} → {shipment.destination}</td><td style={{ textAlign: "right" }}>{shipment.weight_kg} kg</td><td style={{ textAlign: "right" }}>{fmt(baseRate)}</td><td style={{ textAlign: "right" }}>{fmt(subtotal)}</td></tr>
+            <tr><td>{shipment.is_overseas ? "Overseas Cargo Freight" : "Domestic B2B Freight"} — {shipment.origin} → {shipment.destination}</td><td style={{ textAlign: "right" }}>{shipment.weight_kg} kg</td><td style={{ textAlign: "right" }}>{fmt(rate)}</td><td style={{ textAlign: "right" }}>{fmt(subtotal)}</td></tr>
             <tr><td>Fuel & handling surcharge (14%)</td><td></td><td></td><td style={{ textAlign: "right" }}>{fmt(fuel)}</td></tr>
             <tr><td>GST / Duties (18%)</td><td></td><td></td><td style={{ textAlign: "right" }}>{fmt(gst)}</td></tr>
             <tr className="tot"><td colSpan={3} style={{ textAlign: "right", fontWeight: 700 }}>Total Payable</td><td style={{ textAlign: "right", fontWeight: 700, color: "#E31E24" }}>{fmt(total)}</td></tr>
