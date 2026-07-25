@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Lock, Plus, Edit3, ListChecks, Zap, RefreshCw, Search, Trash2, X, LogOut, FileText, Share2, Printer, Copy, Mail, MessageCircle, Save, Receipt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { STATUS_FLOW, type Shipment, type Milestone, listShipments, listMilestones } from "@/lib/shipments";
 
 export const Route = createFileRoute("/admin")({
