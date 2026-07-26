@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket } from "lucide-react";
+import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink } from "lucide-react";
 import { findShipment, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
 
 type Result = { shipment: Shipment; milestones: Milestone[] } | null;
@@ -208,18 +208,33 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
             <>
               <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log</div>
               <ol className="space-y-4">
-                {milestones.slice().reverse().map((m) => (
-                  <li key={m.id} className="flex gap-3">
-                    <MapPin className="h-4 w-4 mt-0.5 text-red shrink-0" />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold">{m.location}</div>
-                      <div className="text-sm text-muted-foreground">{m.status_text}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(m.timestamp).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                {milestones.slice().reverse().map((m) => {
+                  const isCharge = m.status_text.startsWith("Additional charges raised");
+                  return (
+                    <li key={m.id} className={`flex gap-3 ${isCharge ? "rounded-lg border border-red/20 bg-red/5 p-3 -mx-1" : ""}`}>
+                      {isCharge ? <CreditCard className="h-4 w-4 mt-0.5 text-red shrink-0" /> : <MapPin className="h-4 w-4 mt-0.5 text-red shrink-0" />}
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">{isCharge ? "Additional Charges Raised" : m.location}</div>
+                        <div className="text-sm text-muted-foreground">{m.status_text}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(m.timestamp).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        {isCharge && (
+                          <a
+                            href="https://link.payoneer.com/Token?t=667211BC48DA42F99249AFF9A7B2F5DB&src=pl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 inline-flex items-center gap-2 rounded-md bg-red px-5 py-2.5 text-sm font-bold text-red-foreground shadow-lg shadow-red/20 hover:brightness-110 transition-all hover:shadow-red/30 hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                            Pay Now
+                            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                          </a>
+                        )}
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ol>
             </>
           )}

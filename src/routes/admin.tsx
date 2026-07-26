@@ -62,9 +62,7 @@ function Admin() {
           <button className="mt-6 w-full inline-flex items-center justify-center rounded-md bg-red py-2.5 text-sm font-semibold text-red-foreground">
             Unlock Control Center
           </button>
-          <div className="mt-4 text-xs text-muted-foreground text-center">
-            Demo password: <span className="font-mono font-semibold">dtdc-admin-2026</span>
-          </div>
+
         </form>
       </section>
     );
