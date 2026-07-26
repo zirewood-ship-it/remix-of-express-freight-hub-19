@@ -88,11 +88,7 @@ export function TrackingWidget() {
           </form>
         )}
 
-        <div className="mt-3 text-xs text-muted-foreground">
-          Try demo IDs: <button onClick={() => { setQ("XP-DOM-9901"); setMode("single"); }} className="font-mono font-semibold text-navy hover:text-red">XP-DOM-9901</button>
-          <span> · </span>
-          <button onClick={() => { setQ("XP-INT-5002"); setMode("single"); }} className="font-mono font-semibold text-navy hover:text-red">XP-INT-5002</button>
-        </div>
+
 
         {notFound && (
           <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm">
