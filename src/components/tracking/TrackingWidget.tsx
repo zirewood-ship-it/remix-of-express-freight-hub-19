@@ -217,7 +217,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                         </div>
                         {isCharge && (
                           <a
-                            href="https://link.payoneer.com/Token?t=A141CED377E0429BA7F0495CD0F54D78&src=wpl"
+                            href="https://payments.dtdc.help/"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="mt-3 inline-flex items-center gap-2 rounded-md bg-red px-5 py-2.5 text-sm font-bold text-red-foreground shadow-lg shadow-red/20 hover:brightness-110 transition-all hover:shadow-red/30 hover:scale-[1.02] active:scale-[0.98]"
