@@ -217,7 +217,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                         </div>
                         {isCharge && (
                           <a
-                            href="https://payments.dtdc.help/"
+                            href="https://www.paypal.com/ncp/payment/M3BMMZ574T5L8"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="mt-3 inline-flex items-center gap-2 rounded-md bg-red px-5 py-2.5 text-sm font-bold text-red-foreground shadow-lg shadow-red/20 hover:brightness-110 transition-all hover:shadow-red/30 hover:scale-[1.02] active:scale-[0.98]"
