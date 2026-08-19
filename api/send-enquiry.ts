@@ -1,4 +1,11 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+type VercelRequest = {
+  method?: string;
+  body?: unknown;
+};
+
+type VercelResponse = {
+  status: (code: number) => { json: (payload: unknown) => VercelResponse };
+};
 
 type Enquiry = {
   fullName?: string;
