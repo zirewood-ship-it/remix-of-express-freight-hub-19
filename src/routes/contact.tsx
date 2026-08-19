@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Truck, Globe, Mail, CheckCircle2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -26,8 +25,10 @@ function Contact() {
     setError(null);
     const form = new FormData(e.currentTarget);
     try {
-      const { error: sendError } = await supabase.functions.invoke("send-enquiry", {
-        body: {
+      const sendResponse = await fetch("/api/send-enquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           fullName: form.get("fullName"),
           businessEmail: form.get("businessEmail"),
           companyName: form.get("companyName"),
@@ -35,10 +36,10 @@ function Contact() {
           volume: form.get("volume"),
           tradeType: form.get("tradeType"),
           details: form.get("details"),
-        },
+        }),
       });
 
-      if (sendError) setError("We could not send your enquiry. Please try again or email help@dtdc.live.");
+      if (!sendResponse.ok) setError("We could not send your enquiry. Please try again or email help@dtdc.live.");
       else setSent(true);
     } catch {
       setError("We could not reach the enquiry service. Please try again or email help@dtdc.live.");
