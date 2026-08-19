@@ -16,6 +16,24 @@ export const Route = createFileRoute("/contact")({
 
 function Contact() {
   const [sent, setSent] = useState(false);
+  function submitEnquiry(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const body = [
+      `Full Name: ${form.get("fullName") ?? ""}`,
+      `Business Email: ${form.get("businessEmail") ?? ""}`,
+      `Company Name: ${form.get("companyName") ?? ""}`,
+      `GSTIN / Tax ID: ${form.get("taxId") ?? ""}`,
+      `Estimated Monthly Volume: ${form.get("volume") ?? ""}`,
+      `Trade Type: ${form.get("tradeType") ?? ""}`,
+      "",
+      `Requirement Details:\n${form.get("details") ?? ""}`,
+    ].join("\n");
+
+    window.location.href = `mailto:help@dtdc.live?subject=${encodeURIComponent("Merchant Enquiry")}&body=${encodeURIComponent(body)}`;
+    setSent(true);
+  }
+
   return (
     <>
       <section className="bg-navy text-navy-foreground">
@@ -56,21 +74,21 @@ function Contact() {
             <div className="mt-8 rounded-lg border border-navy/20 bg-navy/5 p-6 flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-navy mt-0.5" />
               <div>
-                <div className="font-semibold text-navy">Enquiry received.</div>
-                <div className="text-sm text-muted-foreground mt-1">A merchant success manager will be in touch within one business day.</div>
+                <div className="font-semibold text-navy">Your email draft is ready.</div>
+                <div className="text-sm text-muted-foreground mt-1">Send the opened draft to contact the merchant success desk. They will respond within one business day.</div>
               </div>
             </div>
           ) : (
             <form
-              onSubmit={(e) => { e.preventDefault(); setSent(true); }}
+              onSubmit={submitEnquiry}
               className="mt-8 grid gap-4 md:grid-cols-2"
             >
-              <Field label="Full Name" required><input required className="input" placeholder="Full name" /></Field>
-              <Field label="Business Email" required><input required type="email" className="input" placeholder="ops@company.com" /></Field>
-              <Field label="Company Name" required><input required className="input" placeholder="Legal business name" /></Field>
-              <Field label="GSTIN / Tax ID"><input className="input" placeholder="e.g. 29AAAAA0000A1Z5" /></Field>
+              <Field label="Full Name" required><input required name="fullName" className="input" placeholder="Full name" /></Field>
+              <Field label="Business Email" required><input required name="businessEmail" type="email" className="input" placeholder="ops@company.com" /></Field>
+              <Field label="Company Name" required><input required name="companyName" className="input" placeholder="Legal business name" /></Field>
+              <Field label="GSTIN / Tax ID"><input name="taxId" className="input" placeholder="e.g. 29AAAAA0000A1Z5" /></Field>
               <Field label="Estimated Monthly Volume">
-                <select className="input">
+                <select name="volume" className="input">
                   <option>Under 500 kg / month</option>
                   <option>500 – 5,000 kg / month</option>
                   <option>5T – 25T / month</option>
@@ -78,14 +96,14 @@ function Contact() {
                 </select>
               </Field>
               <Field label="Trade Type">
-                <select className="input">
+                <select name="tradeType" className="input">
                   <option>Domestic freight</option>
                   <option>Overseas / cross-border</option>
                   <option>Both</option>
                 </select>
               </Field>
               <div className="md:col-span-2">
-                <Field label="Requirement Details"><textarea className="input h-28 py-2" placeholder="Lanes, cargo type, timelines…" /></Field>
+                <Field label="Requirement Details"><textarea name="details" className="input h-28 py-2" placeholder="Lanes, cargo type, timelines…" /></Field>
               </div>
               <div className="md:col-span-2">
                 <button className="inline-flex items-center gap-2 rounded-md bg-red px-6 py-3 text-sm font-semibold text-red-foreground">
