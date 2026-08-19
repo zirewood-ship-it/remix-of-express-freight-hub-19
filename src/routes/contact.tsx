@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Truck, Globe, Mail, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -16,22 +17,34 @@ export const Route = createFileRoute("/contact")({
 
 function Contact() {
   const [sent, setSent] = useState(false);
-  function submitEnquiry(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const body = [
-      `Full Name: ${form.get("fullName") ?? ""}`,
-      `Business Email: ${form.get("businessEmail") ?? ""}`,
-      `Company Name: ${form.get("companyName") ?? ""}`,
-      `GSTIN / Tax ID: ${form.get("taxId") ?? ""}`,
-      `Estimated Monthly Volume: ${form.get("volume") ?? ""}`,
-      `Trade Type: ${form.get("tradeType") ?? ""}`,
-      "",
-      `Requirement Details:\n${form.get("details") ?? ""}`,
-    ].join("\n");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    window.location.href = `mailto:help@dtdc.live?subject=${encodeURIComponent("Merchant Enquiry")}&body=${encodeURIComponent(body)}`;
-    setSent(true);
+  async function submitEnquiry(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    const form = new FormData(e.currentTarget);
+    try {
+      const { error: sendError } = await supabase.functions.invoke("send-enquiry", {
+        body: {
+          fullName: form.get("fullName"),
+          businessEmail: form.get("businessEmail"),
+          companyName: form.get("companyName"),
+          taxId: form.get("taxId"),
+          volume: form.get("volume"),
+          tradeType: form.get("tradeType"),
+          details: form.get("details"),
+        },
+      });
+
+      if (sendError) setError("We could not send your enquiry. Please try again or email help@dtdc.live.");
+      else setSent(true);
+    } catch {
+      setError("We could not reach the enquiry service. Please try again or email help@dtdc.live.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -74,8 +87,8 @@ function Contact() {
             <div className="mt-8 rounded-lg border border-navy/20 bg-navy/5 p-6 flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-navy mt-0.5" />
               <div>
-                <div className="font-semibold text-navy">Your email draft is ready.</div>
-                <div className="text-sm text-muted-foreground mt-1">Send the opened draft to contact the merchant success desk. They will respond within one business day.</div>
+                <div className="font-semibold text-navy">Enquiry sent.</div>
+                <div className="text-sm text-muted-foreground mt-1">A merchant success manager will be in touch within one business day.</div>
               </div>
             </div>
           ) : (
@@ -106,8 +119,9 @@ function Contact() {
                 <Field label="Requirement Details"><textarea name="details" className="input h-28 py-2" placeholder="Lanes, cargo type, timelines…" /></Field>
               </div>
               <div className="md:col-span-2">
-                <button className="inline-flex items-center gap-2 rounded-md bg-red px-6 py-3 text-sm font-semibold text-red-foreground">
-                  Submit Enquiry
+                {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+                <button disabled={sending} className="inline-flex items-center gap-2 rounded-md bg-red px-6 py-3 text-sm font-semibold text-red-foreground disabled:opacity-60">
+                  {sending ? "Sending..." : "Submit Enquiry"}
                 </button>
               </div>
             </form>
@@ -120,6 +134,8 @@ function Contact() {
 }
 
 function SupportCard({ icon: Icon, tag, title, desc, email }: { icon: any; tag: string; title: string; desc: string; email: string; }) {
+  const mailto = `mailto:${email}?subject=${encodeURIComponent(`${tag} Freight Enquiry`)}&body=${encodeURIComponent(`Hello DTDC XPRESS+ team,\n\nI need assistance with ${tag.toLowerCase()} freight.\n\nThanks.`)}`;
+
   return (
     <div className="rounded-xl border border-border bg-white p-6 md:p-7 hover:shadow-lg transition">
       <div className="flex items-center justify-between">
@@ -130,7 +146,7 @@ function SupportCard({ icon: Icon, tag, title, desc, email }: { icon: any; tag: 
       </div>
       <h3 className="mt-4 text-xl font-bold text-navy">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
-      <a href={`mailto:${email}`} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate border border-border px-4 py-3 text-sm font-semibold text-navy hover:bg-secondary w-full">
+      <a href={mailto} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate border border-border px-4 py-3 text-sm font-semibold text-navy hover:bg-secondary w-full">
         <Mail className="h-4 w-4 text-red" /> {email}
       </a>
     </div>
