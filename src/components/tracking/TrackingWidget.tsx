@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink } from "lucide-react";
+import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink, CalendarDays } from "lucide-react";
 import { findShipment, listAvailableDeliveryDates, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
 
 type Result = { shipment: Shipment; milestones: Milestone[] } | null;
@@ -212,7 +212,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
             </ol>
           </div>
 
-          {milestones.length > 0 && (
+          {(milestones.length > 0 || selectedDeliveryDate || deliveryDates.length > 0) && (
             <>
               <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log</div>
               <ol className="space-y-4">
