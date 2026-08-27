@@ -277,7 +277,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                       <div className="text-xs text-yellow-700 mt-1">
                         Requested: <span className="font-semibold">{new Date(`${shipment.requested_delivery_date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
                       </div>
-                      <div className="text-xs text-yellow-600 mt-0.5">Awaiting admin approval...</div>
+                      <div className="text-xs text-yellow-600 mt-0.5">Awaiting  for approval...</div>
                     </div>
                   </li>
                 ) : shipment.delivery_date_request_status === 'approved' && shipment.scheduled_delivery_date ? (
