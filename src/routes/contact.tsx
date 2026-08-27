@@ -16,6 +16,38 @@ export const Route = createFileRoute("/contact")({
 
 function Contact() {
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submitEnquiry(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSending(true);
+    setError(null);
+    const form = new FormData(e.currentTarget);
+    try {
+      const sendResponse = await fetch("/api/send-enquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.get("fullName"),
+          businessEmail: form.get("businessEmail"),
+          companyName: form.get("companyName"),
+          taxId: form.get("taxId"),
+          volume: form.get("volume"),
+          tradeType: form.get("tradeType"),
+          details: form.get("details"),
+        }),
+      });
+
+      if (!sendResponse.ok) setError("We could not send your enquiry. Please try again or email help@dtdc.live.");
+      else setSent(true);
+    } catch {
+      setError("We could not reach the enquiry service. Please try again or email help@dtdc.live.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <>
       <section className="bg-navy text-navy-foreground">
@@ -56,21 +88,21 @@ function Contact() {
             <div className="mt-8 rounded-lg border border-navy/20 bg-navy/5 p-6 flex items-start gap-3">
               <CheckCircle2 className="h-5 w-5 text-navy mt-0.5" />
               <div>
-                <div className="font-semibold text-navy">Enquiry received.</div>
+                <div className="font-semibold text-navy">Enquiry sent.</div>
                 <div className="text-sm text-muted-foreground mt-1">A merchant success manager will be in touch within one business day.</div>
               </div>
             </div>
           ) : (
             <form
-              onSubmit={(e) => { e.preventDefault(); setSent(true); }}
+              onSubmit={submitEnquiry}
               className="mt-8 grid gap-4 md:grid-cols-2"
             >
-              <Field label="Full Name" required><input required className="input" placeholder="Full name" /></Field>
-              <Field label="Business Email" required><input required type="email" className="input" placeholder="ops@company.com" /></Field>
-              <Field label="Company Name" required><input required className="input" placeholder="Legal business name" /></Field>
-              <Field label="GSTIN / Tax ID"><input className="input" placeholder="e.g. 29AAAAA0000A1Z5" /></Field>
+              <Field label="Full Name" required><input required name="fullName" className="input" placeholder="Full name" /></Field>
+              <Field label="Business Email" required><input required name="businessEmail" type="email" className="input" placeholder="ops@company.com" /></Field>
+              <Field label="Company Name" required><input required name="companyName" className="input" placeholder="Legal business name" /></Field>
+              <Field label="GSTIN / Tax ID"><input name="taxId" className="input" placeholder="e.g. 29AAAAA0000A1Z5" /></Field>
               <Field label="Estimated Monthly Volume">
-                <select className="input">
+                <select name="volume" className="input">
                   <option>Under 500 kg / month</option>
                   <option>500 – 5,000 kg / month</option>
                   <option>5T – 25T / month</option>
@@ -78,18 +110,19 @@ function Contact() {
                 </select>
               </Field>
               <Field label="Trade Type">
-                <select className="input">
+                <select name="tradeType" className="input">
                   <option>Domestic freight</option>
                   <option>Overseas / cross-border</option>
                   <option>Both</option>
                 </select>
               </Field>
               <div className="md:col-span-2">
-                <Field label="Requirement Details"><textarea className="input h-28 py-2" placeholder="Lanes, cargo type, timelines…" /></Field>
+                <Field label="Requirement Details"><textarea name="details" className="input h-28 py-2" placeholder="Lanes, cargo type, timelines…" /></Field>
               </div>
               <div className="md:col-span-2">
-                <button className="inline-flex items-center gap-2 rounded-md bg-red px-6 py-3 text-sm font-semibold text-red-foreground">
-                  Submit Enquiry
+                {error && <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+                <button disabled={sending} className="inline-flex items-center gap-2 rounded-md bg-red px-6 py-3 text-sm font-semibold text-red-foreground disabled:opacity-60">
+                  {sending ? "Sending..." : "Submit Enquiry"}
                 </button>
               </div>
             </form>
@@ -102,6 +135,8 @@ function Contact() {
 }
 
 function SupportCard({ icon: Icon, tag, title, desc, email }: { icon: any; tag: string; title: string; desc: string; email: string; }) {
+  const mailto = `mailto:${email}?subject=${encodeURIComponent(`${tag} Freight Enquiry`)}&body=${encodeURIComponent(`Hello DTDC XPRESS+ team,\n\nI need assistance with ${tag.toLowerCase()} freight.\n\nThanks.`)}`;
+
   return (
     <div className="rounded-xl border border-border bg-white p-6 md:p-7 hover:shadow-lg transition">
       <div className="flex items-center justify-between">
@@ -112,7 +147,7 @@ function SupportCard({ icon: Icon, tag, title, desc, email }: { icon: any; tag: 
       </div>
       <h3 className="mt-4 text-xl font-bold text-navy">{title}</h3>
       <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
-      <a href={`mailto:${email}`} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate border border-border px-4 py-3 text-sm font-semibold text-navy hover:bg-secondary w-full">
+      <a href={mailto} className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate border border-border px-4 py-3 text-sm font-semibold text-navy hover:bg-secondary w-full">
         <Mail className="h-4 w-4 text-red" /> {email}
       </a>
     </div>
