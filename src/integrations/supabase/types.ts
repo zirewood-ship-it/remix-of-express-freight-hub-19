@@ -73,12 +73,17 @@ export type Database = {
       shipments: {
         Row: {
           created_at: string
+          delivery_date_rejection_reason: string | null
+          delivery_date_request_status: string
+          delivery_date_reviewed_at: string | null
           destination: string
           estimated_delivery: string | null
           id: string
           is_overseas: boolean
           origin: string
           receiver_company: string
+          requested_delivery_date: string | null
+          scheduled_delivery_date: string | null
           sender_company: string
           status: string
           tracking_number: string
@@ -86,12 +91,17 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_date_rejection_reason?: string | null
+          delivery_date_request_status?: string
+          delivery_date_reviewed_at?: string | null
           destination: string
           estimated_delivery?: string | null
           id?: string
           is_overseas?: boolean
           origin: string
           receiver_company: string
+          requested_delivery_date?: string | null
+          scheduled_delivery_date?: string | null
           sender_company: string
           status?: string
           tracking_number: string
@@ -99,12 +109,17 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_date_rejection_reason?: string | null
+          delivery_date_request_status?: string
+          delivery_date_reviewed_at?: string | null
           destination?: string
           estimated_delivery?: string | null
           id?: string
           is_overseas?: boolean
           origin?: string
           receiver_company?: string
+          requested_delivery_date?: string | null
+          scheduled_delivery_date?: string | null
           sender_company?: string
           status?: string
           tracking_number?: string

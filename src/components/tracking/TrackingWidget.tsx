@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink, CalendarDays } from "lucide-react";
-import { findShipment, listAvailableDeliveryDates, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
+import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink, CalendarDays, AlertCircle, CheckIcon } from "lucide-react";
+import { findShipment, listAvailableDeliveryDates, requestDeliveryDate, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
 
 type Result = { shipment: Shipment; milestones: Milestone[] } | null;
 
@@ -129,7 +129,10 @@ export function TrackingWidget() {
 function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Milestone[] } }) {
   const { shipment, milestones } = data;
   const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
-  const [selectedDeliveryDate, setSelectedDeliveryDate] = useState(shipment.estimated_delivery ?? "");
+  const [selectedDeliveryDate, setSelectedDeliveryDate] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const currentIdx = Math.max(0, STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
 
   useEffect(() => {
@@ -137,10 +140,26 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
     listAvailableDeliveryDates(shipment.is_overseas).then(dates => {
       if (!active) return;
       setDeliveryDates(dates);
-      setSelectedDeliveryDate(current => current && dates.includes(current) ? current : dates[0] ?? current);
+      setSelectedDeliveryDate(dates[0] ?? "");
     });
     return () => { active = false; };
   }, [shipment.is_overseas]);
+
+  const handleSubmitDeliveryDateRequest = async () => {
+    if (!selectedDeliveryDate) return;
+    setSubmitting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await requestDeliveryDate(shipment.id, selectedDeliveryDate, shipment.is_overseas);
+      setMessage("Delivery date request submitted for admin approval.");
+      setSelectedDeliveryDate("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit request");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="mt-6 rounded-lg border border-border bg-slate/50 overflow-hidden">
@@ -212,26 +231,66 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
             </ol>
           </div>
 
-          {(milestones.length > 0 || selectedDeliveryDate || deliveryDates.length > 0) && (
+          {(milestones.length > 0 || deliveryDates.length > 0 || shipment.delivery_date_request_status !== 'none') && (
             <>
-              <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log</div>
+              <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log & Scheduling</div>
               <ol className="space-y-4">
-                <li className="flex gap-3 rounded-lg border border-navy/15 bg-navy/5 p-3 -mx-1">
-                  <CalendarDays className="h-4 w-4 mt-0.5 text-navy shrink-0" />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">Scheduled Delivery</div>
-                    <select
-                      value={selectedDeliveryDate}
-                      onChange={e => setSelectedDeliveryDate(e.target.value)}
-                      className="mt-2 h-9 w-full max-w-sm rounded-md border border-input bg-white px-2 text-sm font-semibold text-navy outline-none focus:border-navy"
-                      disabled={deliveryDates.length === 0}
-                    >
-                      {deliveryDates.length === 0 ? <option value={selectedDeliveryDate}>{selectedDeliveryDate || "No dates currently available"}</option> : deliveryDates.map(date => (
-                        <option key={date} value={date}>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</option>
-                      ))}
-                    </select>
-                  </div>
-                </li>
+                {shipment.delivery_date_request_status === 'none' || shipment.delivery_date_request_status === 'rejected' ? (
+                  <li className="flex gap-3 rounded-lg border border-navy/15 bg-navy/5 p-3 -mx-1">
+                    <CalendarDays className="h-4 w-4 mt-0.5 text-navy shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold">Request Delivery Date</div>
+                      {shipment.delivery_date_request_status === 'rejected' && shipment.delivery_date_rejection_reason && (
+                        <div className="mt-1 text-xs text-red-600">Reason: {shipment.delivery_date_rejection_reason}</div>
+                      )}
+                      <div className="mt-3 flex gap-2 flex-wrap items-end">
+                        <select
+                          value={selectedDeliveryDate}
+                          onChange={e => setSelectedDeliveryDate(e.target.value)}
+                          className="h-9 flex-1 min-w-[200px] max-w-sm rounded-md border border-input bg-white px-2 text-sm font-semibold text-navy outline-none focus:border-navy"
+                          disabled={deliveryDates.length === 0 || submitting}
+                        >
+                          <option value="">Select a delivery date</option>
+                          {deliveryDates.map(date => (
+                            <option key={date} value={date}>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleSubmitDeliveryDateRequest}
+                          disabled={!selectedDeliveryDate || submitting}
+                          className="h-9 inline-flex items-center gap-2 rounded-md bg-navy px-4 text-sm font-semibold text-navy-foreground disabled:opacity-60"
+                        >
+                          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                          Submit Request
+                        </button>
+                      </div>
+                      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+                      {message && <div className="mt-2 text-xs text-green-600">{message}</div>}
+                      {deliveryDates.length === 0 && <div className="mt-2 text-xs text-muted-foreground">No dates currently available</div>}
+                    </div>
+                  </li>
+                ) : shipment.delivery_date_request_status === 'pending' ? (
+                  <li className="flex gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 -mx-1">
+                    <AlertCircle className="h-4 w-4 mt-0.5 text-yellow-600 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-yellow-900">Delivery Date Request Pending</div>
+                      <div className="text-xs text-yellow-700 mt-1">
+                        Requested: <span className="font-semibold">{new Date(`${shipment.requested_delivery_date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
+                      </div>
+                      <div className="text-xs text-yellow-600 mt-0.5">Awaiting admin approval...</div>
+                    </div>
+                  </li>
+                ) : shipment.delivery_date_request_status === 'approved' && shipment.scheduled_delivery_date ? (
+                  <li className="flex gap-3 rounded-lg border border-green-200 bg-green-50 p-3 -mx-1">
+                    <CheckIcon className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-green-900">Scheduled Delivery Date Approved</div>
+                      <div className="text-xs text-green-700 mt-1">
+                        <span className="font-semibold">{new Date(`${shipment.scheduled_delivery_date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+                      </div>
+                    </div>
+                  </li>
+                ) : null}
                 {milestones.slice().reverse().map((m) => {
                   const isCharge = m.status_text.startsWith("Additional charges raised");
                   return (

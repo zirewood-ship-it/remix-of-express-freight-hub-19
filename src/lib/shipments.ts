@@ -11,6 +11,11 @@ export type Shipment = {
   status: string;
   weight_kg: number;
   estimated_delivery: string | null;
+  requested_delivery_date: string | null;
+  delivery_date_request_status: string;
+  scheduled_delivery_date: string | null;
+  delivery_date_reviewed_at: string | null;
+  delivery_date_rejection_reason: string | null;
   created_at: string;
 };
 
@@ -60,6 +65,69 @@ export async function listAvailableDeliveryDates(isOverseas: boolean) {
     .order("delivery_date", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(row => row.delivery_date);
+}
+
+export async function requestDeliveryDate(shipmentId: string, requestedDate: string, isOverseas: boolean) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: available, error: checkError } = await supabase
+    .from("delivery_date_availability")
+    .select("id")
+    .eq("delivery_date", requestedDate)
+    .eq("is_overseas", isOverseas)
+    .eq("is_available", true)
+    .gte("delivery_date", today)
+    .maybeSingle();
+  if (checkError) throw checkError;
+  if (!available) throw new Error("Requested delivery date is not available");
+
+  const { error } = await supabase
+    .from("shipments")
+    .update({ requested_delivery_date: requestedDate, delivery_date_request_status: "pending" })
+    .eq("id", shipmentId);
+  if (error) throw error;
+}
+
+export async function approveDeliveryDateRequest(shipmentId: string) {
+  const { data: shipment, error: fetchError } = await supabase
+    .from("shipments")
+    .select("requested_delivery_date")
+    .eq("id", shipmentId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  if (!shipment?.requested_delivery_date) throw new Error("No delivery date request to approve");
+
+  const { error } = await supabase
+    .from("shipments")
+    .update({
+      delivery_date_request_status: "approved",
+      scheduled_delivery_date: shipment.requested_delivery_date,
+      delivery_date_reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", shipmentId);
+  if (error) throw error;
+}
+
+export async function rejectDeliveryDateRequest(shipmentId: string, reason?: string) {
+  const { error } = await supabase
+    .from("shipments")
+    .update({
+      delivery_date_request_status: "rejected",
+      scheduled_delivery_date: null,
+      delivery_date_reviewed_at: new Date().toISOString(),
+      delivery_date_rejection_reason: reason || null,
+    })
+    .eq("id", shipmentId);
+  if (error) throw error;
+}
+
+export async function listPendingDeliveryDateRequests() {
+  const { data, error } = await supabase
+    .from("shipments")
+    .select("*")
+    .eq("delivery_date_request_status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Shipment[];
 }
 
 export async function findShipment(trackingNumber: string) {

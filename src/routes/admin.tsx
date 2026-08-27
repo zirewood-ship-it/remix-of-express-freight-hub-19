@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Lock, Plus, Edit3, ListChecks, CalendarDays, Zap, RefreshCw, Search, Trash2, X, LogOut, FileText, Share2, Printer, Copy, Mail, MessageCircle, Save, Receipt } from "lucide-react";
+import { Lock, Plus, Edit3, ListChecks, CalendarDays, Clock, CheckCircle2, XCircle, Zap, RefreshCw, Search, Trash2, X, LogOut, FileText, Share2, Printer, Copy, Mail, MessageCircle, Save, Receipt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { listDeliveryDateAvailability, STATUS_FLOW, type Shipment, type Milestone, type DeliveryDateAvailability, listShipments, listMilestones } from "@/lib/shipments";
+import { listDeliveryDateAvailability, listPendingDeliveryDateRequests, approveDeliveryDateRequest, rejectDeliveryDateRequest, STATUS_FLOW, type Shipment, type Milestone, type DeliveryDateAvailability, listShipments, listMilestones } from "@/lib/shipments";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -71,7 +71,7 @@ function Admin() {
   return <AdminDashboard onLock={() => { sessionStorage.removeItem("dtdc_admin"); setUnlocked(false); setPw(""); }} />;
 }
 
-type Tab = "create" | "manage" | "all" | "availability";
+type Tab = "create" | "manage" | "all" | "availability" | "pending";
 
 function AdminDashboard({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("create");
@@ -105,6 +105,7 @@ function AdminDashboard({ onLock }: { onLock: () => void }) {
         {[
           { k: "create", label: "Create Consignment", icon: Plus },
           { k: "manage", label: "Manage Milestones", icon: Edit3 },
+          { k: "pending", label: "Pending Requests", icon: Clock },
           { k: "all", label: "All Consignments", icon: ListChecks },
           { k: "availability", label: "Delivery Dates", icon: CalendarDays },
         ].map((t) => (
@@ -123,6 +124,7 @@ function AdminDashboard({ onLock }: { onLock: () => void }) {
       <div className="mt-6">
         {tab === "create" && <CreateTab onCreated={refresh} />}
         {tab === "manage" && <ManageTab shipments={shipments} onChange={refresh} />}
+        {tab === "pending" && <PendingRequestsTab onChange={refresh} />}
         {tab === "all" && <AllTab shipments={shipments} onChange={refresh} />}
         {tab === "availability" && <AvailabilityTab />}
       </div>
@@ -448,6 +450,110 @@ function AvailabilityTab() {
           ))}
           {dates.length === 0 && <div className="px-6 py-10 text-center text-sm text-muted-foreground">No delivery dates configured.</div>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Pending Requests Tab ---------- */
+
+function PendingRequestsTab({ onChange }: { onChange: () => void }) {
+  const [requests, setRequests] = useState<Shipment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      setRequests(await listPendingDeliveryDateRequests());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  async function approve(shipment: Shipment) {
+    setBusy(true);
+    try {
+      await approveDeliveryDateRequest(shipment.id);
+      await refresh();
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject(shipment: Shipment) {
+    setBusy(true);
+    try {
+      await rejectDeliveryDateRequest(shipment.id, rejectionReasons[shipment.id] || "");
+      setRejectionReasons(s => { const copy = { ...s }; delete copy[shipment.id]; return copy; });
+      await refresh();
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-white overflow-hidden">
+      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+        <div className="font-bold text-navy flex items-center gap-2">
+          <Clock className="h-5 w-5 text-red" /> Pending Delivery Date Requests
+        </div>
+        <button onClick={() => refresh()} className="inline-flex items-center gap-2 rounded-md border border-input px-3 py-2 text-xs font-semibold">
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </button>
+      </div>
+      <div className="divide-y divide-border">
+        {requests.map(request => (
+          <div key={request.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-4">
+            <div className="flex-1">
+              <div className="font-mono text-sm font-bold text-navy">{request.tracking_number}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                <span className="font-semibold">{request.sender_company}</span> → <span className="font-semibold">{request.receiver_company}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {request.origin} → {request.destination} <span className="mx-2">·</span>
+                <span className={`font-semibold ${request.is_overseas ? "text-red" : "text-navy"}`}>{request.is_overseas ? "Overseas" : "Domestic"}</span>
+              </div>
+              <div className="text-sm font-semibold mt-2">
+                Requested: <span className="text-navy">{new Date(`${request.requested_delivery_date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Requested: {new Date(request.created_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <textarea
+                placeholder="Optional rejection reason"
+                value={rejectionReasons[request.id] || ""}
+                onChange={e => setRejectionReasons(s => ({ ...s, [request.id]: e.target.value }))}
+                className="w-full md:w-48 rounded-md border border-input px-2 py-1 text-xs outline-none focus:border-navy resize-none"
+                rows={2}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => approve(request)}
+                  disabled={busy}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Approve
+                </button>
+                <button
+                  onClick={() => reject(request)}
+                  disabled={busy}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground hover:brightness-110 disabled:opacity-60"
+                >
+                  <XCircle className="h-4 w-4" /> Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {requests.length === 0 && !loading && <div className="px-6 py-10 text-center text-sm text-muted-foreground">No pending delivery date requests.</div>}
       </div>
     </div>
   );
