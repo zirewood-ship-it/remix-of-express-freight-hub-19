@@ -1,6 +1,6 @@
 CREATE TABLE public.delivery_date_availability (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  delivery_date date NOT NULL,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        delivery_date date NOT NULL,
   is_overseas boolean NOT NULL DEFAULT false,
   is_available boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),

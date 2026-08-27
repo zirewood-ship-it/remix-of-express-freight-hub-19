@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Loader2, PackageCheck, CheckCircle2, Circle, Mail, MapPin, ArrowRight, Zap, ShieldCheck, Truck, FileCheck2, Rocket, CreditCard, ExternalLink } from "lucide-react";
-import { findShipment, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
+import { findShipment, listAvailableDeliveryDates, STATUS_FLOW, type Shipment, type Milestone } from "@/lib/shipments";
 
 type Result = { shipment: Shipment; milestones: Milestone[] } | null;
 
@@ -128,7 +128,19 @@ export function TrackingWidget() {
 
 function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Milestone[] } }) {
   const { shipment, milestones } = data;
+  const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
+  const [selectedDeliveryDate, setSelectedDeliveryDate] = useState(shipment.estimated_delivery ?? "");
   const currentIdx = Math.max(0, STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
+
+  useEffect(() => {
+    let active = true;
+    listAvailableDeliveryDates(shipment.is_overseas).then(dates => {
+      if (!active) return;
+      setDeliveryDates(dates);
+      setSelectedDeliveryDate(current => current && dates.includes(current) ? current : dates[0] ?? current);
+    });
+    return () => { active = false; };
+  }, [shipment.is_overseas]);
 
   return (
     <div className="mt-6 rounded-lg border border-border bg-slate/50 overflow-hidden">
@@ -204,6 +216,22 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
             <>
               <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log</div>
               <ol className="space-y-4">
+                <li className="flex gap-3 rounded-lg border border-navy/15 bg-navy/5 p-3 -mx-1">
+                  <CalendarDays className="h-4 w-4 mt-0.5 text-navy shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold">Scheduled Delivery</div>
+                    <select
+                      value={selectedDeliveryDate}
+                      onChange={e => setSelectedDeliveryDate(e.target.value)}
+                      className="mt-2 h-9 w-full max-w-sm rounded-md border border-input bg-white px-2 text-sm font-semibold text-navy outline-none focus:border-navy"
+                      disabled={deliveryDates.length === 0}
+                    >
+                      {deliveryDates.length === 0 ? <option value={selectedDeliveryDate}>{selectedDeliveryDate || "No dates currently available"}</option> : deliveryDates.map(date => (
+                        <option key={date} value={date}>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</option>
+                      ))}
+                    </select>
+                  </div>
+                </li>
                 {milestones.slice().reverse().map((m) => {
                   const isCharge = m.status_text.startsWith("Additional charges raised");
                   return (
