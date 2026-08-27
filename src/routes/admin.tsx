@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Lock, Plus, Edit3, ListChecks, Zap, RefreshCw, Search, Trash2, X, LogOut, FileText, Share2, Printer, Copy, Mail, MessageCircle, Save, Receipt } from "lucide-react";
+import { Lock, Plus, Edit3, ListChecks, CalendarDays, Zap, RefreshCw, Search, Trash2, X, LogOut, FileText, Share2, Printer, Copy, Mail, MessageCircle, Save, Receipt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesUpdate } from "@/integrations/supabase/types";
-import { STATUS_FLOW, type Shipment, type Milestone, listShipments, listMilestones } from "@/lib/shipments";
+import { listDeliveryDateAvailability, STATUS_FLOW, type Shipment, type Milestone, type DeliveryDateAvailability, listShipments, listMilestones } from "@/lib/shipments";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -71,7 +71,7 @@ function Admin() {
   return <AdminDashboard onLock={() => { sessionStorage.removeItem("dtdc_admin"); setUnlocked(false); setPw(""); }} />;
 }
 
-type Tab = "create" | "manage" | "all";
+type Tab = "create" | "manage" | "all" | "availability";
 
 function AdminDashboard({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("create");
@@ -106,6 +106,7 @@ function AdminDashboard({ onLock }: { onLock: () => void }) {
           { k: "create", label: "Create Consignment", icon: Plus },
           { k: "manage", label: "Manage Milestones", icon: Edit3 },
           { k: "all", label: "All Consignments", icon: ListChecks },
+          { k: "availability", label: "Delivery Dates", icon: CalendarDays },
         ].map((t) => (
           <button
             key={t.k}
@@ -123,6 +124,7 @@ function AdminDashboard({ onLock }: { onLock: () => void }) {
         {tab === "create" && <CreateTab onCreated={refresh} />}
         {tab === "manage" && <ManageTab shipments={shipments} onChange={refresh} />}
         {tab === "all" && <AllTab shipments={shipments} onChange={refresh} />}
+        {tab === "availability" && <AvailabilityTab />}
       </div>
     </section>
   );
@@ -369,6 +371,83 @@ function ManageTab({ shipments, onChange }: { shipments: Shipment[]; onChange: (
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Delivery Date Availability ---------- */
+
+function AvailabilityTab() {
+  const [dates, setDates] = useState<DeliveryDateAvailability[]>([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [isOverseas, setIsOverseas] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function refresh() {
+    setDates(await listDeliveryDateAvailability());
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  async function addDate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deliveryDate) return;
+    setBusy(true); setMessage(null);
+    const { error } = await supabase.from("delivery_date_availability").insert({ delivery_date: deliveryDate, is_overseas: isOverseas });
+    if (error) setMessage(error.code === "23505" ? "That date is already configured for this service." : error.message);
+    else { setDeliveryDate(""); setMessage("Delivery date added."); await refresh(); }
+    setBusy(false);
+  }
+
+  async function toggleDate(date: DeliveryDateAvailability) {
+    await supabase.from("delivery_date_availability").update({ is_available: !date.is_available }).eq("id", date.id);
+    await refresh();
+  }
+
+  async function removeDate(id: string) {
+    await supabase.from("delivery_date_availability").delete().eq("id", id);
+    await refresh();
+  }
+
+  return (
+    <div className="space-y-5">
+      <form onSubmit={addDate} className="rounded-xl border border-border bg-white p-6">
+        <div className="flex items-center gap-2 font-bold text-navy"><CalendarDays className="h-5 w-5 text-red" /> Add Delivery Date</div>
+        <p className="mt-1 text-sm text-muted-foreground">Only enabled future dates appear in the customer delivery-date selector.</p>
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <F label="Delivery Date"><input required type="date" min={new Date().toISOString().slice(0, 10)} value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className="input" /></F>
+          <F label="Service Type">
+            <select value={isOverseas ? "overseas" : "domestic"} onChange={e => setIsOverseas(e.target.value === "overseas")} className="input">
+              <option value="domestic">Domestic Freight</option>
+              <option value="overseas">Overseas Cargo</option>
+            </select>
+          </F>
+          <button disabled={busy} className="h-10 inline-flex items-center gap-2 rounded-md bg-red px-4 text-sm font-semibold text-red-foreground disabled:opacity-60"><Plus className="h-4 w-4" /> Add Date</button>
+        </div>
+        {message && <div className="mt-3 text-sm font-semibold text-navy">{message}</div>}
+      </form>
+
+      <div className="rounded-xl border border-border bg-white overflow-hidden">
+        <div className="border-b border-border px-6 py-4 font-bold text-navy">Configured Delivery Dates</div>
+        <div className="divide-y divide-border">
+          {dates.map(date => (
+            <div key={date.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+              <div>
+                <div className="font-semibold">{new Date(`${date.delivery_date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short", year: "numeric" })}</div>
+                <div className="text-xs text-muted-foreground">{date.is_overseas ? "Overseas Cargo" : "Domestic Freight"}</div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => toggleDate(date)} className={`rounded-md px-3 py-2 text-xs font-semibold ${date.is_available ? "bg-navy text-navy-foreground" : "border border-input text-muted-foreground"}`}>
+                  {date.is_available ? "Available" : "Unavailable"}
+                </button>
+                <button onClick={() => removeDate(date.id)} aria-label={`Remove ${date.delivery_date}`} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+          ))}
+          {dates.length === 0 && <div className="px-6 py-10 text-center text-sm text-muted-foreground">No delivery dates configured.</div>}
+        </div>
       </div>
     </div>
   );

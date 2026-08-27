@@ -22,6 +22,14 @@ export type Milestone = {
   timestamp: string;
 };
 
+export type DeliveryDateAvailability = {
+  id: string;
+  delivery_date: string;
+  is_overseas: boolean;
+  is_available: boolean;
+  created_at: string;
+};
+
 export const STATUS_FLOW = [
   "Booked",
   "Picked Up",
@@ -31,6 +39,28 @@ export const STATUS_FLOW = [
   "Out for Delivery",
   "Delivered",
 ] as const;
+
+export async function listDeliveryDateAvailability() {
+  const { data, error } = await supabase
+    .from("delivery_date_availability")
+    .select("*")
+    .order("delivery_date", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as DeliveryDateAvailability[];
+}
+
+export async function listAvailableDeliveryDates(isOverseas: boolean) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from("delivery_date_availability")
+    .select("delivery_date")
+    .eq("is_overseas", isOverseas)
+    .eq("is_available", true)
+    .gte("delivery_date", today)
+    .order("delivery_date", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(row => row.delivery_date);
+}
 
 export async function findShipment(trackingNumber: string) {
   const tn = trackingNumber.trim().toUpperCase();

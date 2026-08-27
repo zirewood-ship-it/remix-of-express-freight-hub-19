@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      delivery_date_availability: {
+        Row: {
+          created_at: string
+          delivery_date: string
+          id: string
+          is_available: boolean
+          is_overseas: boolean
+        }
+        Insert: {
+          created_at?: string
+          delivery_date: string
+          id?: string
+          is_available?: boolean
+          is_overseas?: boolean
+        }
+        Update: {
+          created_at?: string
+          delivery_date?: string
+          id?: string
+          is_available?: boolean
+          is_overseas?: boolean
+        }
+        Relationships: []
+      }
       milestones: {
         Row: {
           id: string

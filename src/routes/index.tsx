@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Truck, Plane, Landmark, Warehouse, ArrowRight, Calculator, Globe, ShieldCheck, Zap, BarChart3,
 } from "lucide-react";
 import { TrackingWidget } from "@/components/tracking/TrackingWidget";
+import { listAvailableDeliveryDates } from "@/lib/shipments";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -127,8 +128,21 @@ const COUNTRIES = [
 function RateEstimator() {
   const [origin, setOrigin] = useState("IN");
   const [dest, setDest] = useState("DE");
+  const [isOverseas, setIsOverseas] = useState(true);
   const [weight, setWeight] = useState(100);
   const [dim, setDim] = useState("120x100x80");
+  const [deliveryDates, setDeliveryDates] = useState<string[]>([]);
+  const [deliveryDate, setDeliveryDate] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    listAvailableDeliveryDates(isOverseas).then(dates => {
+      if (!active) return;
+      setDeliveryDates(dates);
+      setDeliveryDate(current => dates.includes(current) ? current : dates[0] ?? "");
+    });
+    return () => { active = false; };
+  }, [isOverseas]);
 
   const quote = useMemo(() => {
     const key = `${origin}-${dest}`;
@@ -173,6 +187,19 @@ function RateEstimator() {
             <div className="font-bold">Rate Calculator</div>
           </div>
           <div className="mt-5 grid sm:grid-cols-2 gap-4">
+            <Field label="Service Type">
+              <select value={isOverseas ? "overseas" : "domestic"} onChange={e => setIsOverseas(e.target.value === "overseas")} className="input">
+                <option value="domestic">Domestic Freight</option>
+                <option value="overseas">Overseas Cargo</option>
+              </select>
+            </Field>
+            <Field label="Preferred Delivery Date">
+              <select value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className="input" disabled={deliveryDates.length === 0}>
+                {deliveryDates.length === 0 ? <option value="">No dates currently available</option> : deliveryDates.map(date => (
+                  <option key={date} value={date}>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="Origin Country">
               <select value={origin} onChange={e => setOrigin(e.target.value)} className="input">
                 {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
