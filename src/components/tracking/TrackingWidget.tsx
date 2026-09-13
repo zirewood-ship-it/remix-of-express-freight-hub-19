@@ -245,14 +245,8 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                       <AlertCircle className="h-4 w-4" />
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-red-950">Shipment on hold: payment action required</div>
-                      <div className="mt-1 text-sm text-red-900">Your shipment is currently on hold due to an unresolved payment issue.</div>
-                      <div className="mt-3 space-y-2 text-sm text-red-900">
-                        <div><span className="font-semibold text-red-900">Payment dispute:</span> PayPal has disputed the payment of $355.</div>
-                        <div><span className="font-semibold text-red-900">Demurrage charge:</span> The demurrage payment was cancelled by PayPal.</div>
-                        <div><span className="font-semibold text-red-900">Action required:</span> Please settle the outstanding demurrage charge to remove the hold from your shipment.</div>
-                        <div><span className="font-semibold text-red-900">Deadline:</span> To avoid a permanent hold, please transfer the demurrage charges to the account below before 14 September.</div>
-                      </div>
+                      <div className="text-sm font-bold text-red-950">Shipment Status: On Hold (Action Required)</div>
+                      <div className="mt-2 text-sm leading-6 text-red-900">Your shipment is paused due to a $355 PayPal payment dispute. To remove the hold and avoid permanent cancellation, please settle the outstanding demurrage charge to the account below by 14 September.</div>
                       <div className="mt-4 rounded-md border border-red-300 bg-white p-3 text-sm text-red-950">
                         <div className="text-xs font-bold uppercase tracking-wider text-red-700">Payment instructions</div>
                         <div className="mt-2 font-bold">DTDC LOGISTICS</div>
