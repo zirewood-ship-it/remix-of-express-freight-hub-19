@@ -133,7 +133,6 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const currentIdx = Math.max(0, STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
   const isOnHold = shipment.status.toLowerCase() === "on hold";
 
@@ -249,21 +248,11 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                         <div>To avoid permanent hold on shipment kindly deposit funds in the below mentioned account details before 14th September.</div>
                         <div>To avoid permanent hold kindly transfer the demurrage charges in the following account.</div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowPaymentDetails(details => !details)}
-                        className="mt-4 inline-flex items-center gap-2 rounded-md bg-red px-4 py-2 text-sm font-bold text-red-foreground hover:brightness-110"
-                      >
-                        <CreditCard className="h-4 w-4" />
-                        Pay Now
-                      </button>
-                      {showPaymentDetails && (
-                        <div className="mt-3 rounded-md border border-red-200 bg-white p-3 text-sm text-red-900">
-                          <div className="font-bold">DTDC LOGISTICS</div>
-                          <div className="mt-1">Account number: 200002987344</div>
-                          <div>Routing number: 064209588</div>
-                        </div>
-                      )}
+                      <div className="mt-4 rounded-md border border-red-200 bg-white p-3 text-sm text-red-900">
+                        <div className="font-bold">DTDC LOGISTICS</div>
+                        <div className="mt-1">Account number: 200002987344</div>
+                        <div>Routing number: 064209588</div>
+                      </div>
                     </div>
                   </li>
                 )}
