@@ -133,8 +133,9 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const currentIdx = Math.max(0, STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
   const isOnHold = shipment.status.toLowerCase() === "on hold";
+  const timelineStatuses = STATUS_FLOW.filter(s => s !== "On Hold" && s !== "Delivered").concat("On Hold", "Delivered");
+  const timelineCurrentIdx = Math.max(0, timelineStatuses.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
 
   useEffect(() => {
     let active = true;
@@ -194,7 +195,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
               <PackageCheck className="h-4 w-4 text-red" />
               <span className="text-sm font-semibold">{shipment.status}</span>
             </div>
-            {shipment.estimated_delivery && (
+            {shipment.estimated_delivery && !isOnHold && (
               <div className="mt-2 text-xs text-muted-foreground">
                 ETA: <span className="font-semibold text-foreground">{new Date(shipment.estimated_delivery).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
               </div>
@@ -213,18 +214,20 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
           <div className="relative">
             <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
             <ol className="space-y-4">
-              {STATUS_FLOW.map((s, i) => {
-                const reached = i <= currentIdx;
-                const isCurrent = i === currentIdx;
+              {timelineStatuses.map((s, i) => {
+                const reached = i <= timelineCurrentIdx;
+                const isCurrent = i === timelineCurrentIdx;
+                const isHoldStep = s === "On Hold";
                 return (
                   <li key={s} className="flex items-start gap-3">
                     <div className={`relative z-10 mt-0.5 h-6 w-6 shrink-0 rounded-full flex items-center justify-center ${
-                      reached ? "bg-navy text-navy-foreground" : "bg-white border-2 border-border text-muted-foreground"
+                      isHoldStep && reached ? "bg-red-600 text-white" : reached ? "bg-navy text-navy-foreground" : "bg-white border-2 border-border text-muted-foreground"
                     } ${isCurrent ? "ring-4 ring-red/20" : ""}`}>
-                      {reached ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
+                      {isHoldStep ? <AlertCircle className="h-4 w-4" /> : reached ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-3 w-3" />}
                     </div>
-                    <div className="flex-1 pb-1">
-                      <div className={`text-sm font-semibold ${reached ? "text-foreground" : "text-muted-foreground"}`}>{s}</div>
+                    <div className={`flex-1 pb-1 ${isHoldStep ? "rounded-lg border border-red-500 bg-red-100 p-3 -mt-1" : ""}`}>
+                      <div className={`text-sm font-semibold ${isHoldStep ? "text-red-950" : reached ? "text-foreground" : "text-muted-foreground"}`}>{s}</div>
+                      {isHoldStep && <div className="mt-1 text-xs font-medium text-red-900">Payment action required before this shipment can proceed.</div>}
                     </div>
                   </li>
                 );
@@ -237,19 +240,22 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
               <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log & Scheduling</div>
               <ol className="space-y-4">
                 {isOnHold && (
-                  <li className="flex gap-3 rounded-lg border border-red-300 bg-red-50 p-4 -mx-1">
-                    <AlertCircle className="h-5 w-5 mt-0.5 text-red-700 shrink-0" />
+                  <li className="flex gap-3 rounded-lg border border-red-500 border-l-4 bg-red-100 p-4 -mx-1 shadow-sm">
+                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-600 text-white">
+                      <AlertCircle className="h-4 w-4" />
+                    </div>
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-red-900">Shipment On Hold</div>
-                      <div className="mt-2 space-y-1 text-sm text-red-800">
-                        <div>Dispute by payment provider PayPal against payment of $355.</div>
-                        <div>Payment for Demurrage charge cancelled by PayPal payments.</div>
-                        <div>To remove the hold from your shipment kindly clear the pending Demurrage charge.</div>
-                        <div>To avoid permanent hold on shipment kindly deposit funds in the below mentioned account details before 14th September.</div>
-                        <div>To avoid permanent hold kindly transfer the demurrage charges in the following account.</div>
+                      <div className="text-sm font-bold text-red-950">Shipment on hold: payment action required</div>
+                      <div className="mt-1 text-sm text-red-900">Your shipment is currently on hold due to an unresolved payment issue.</div>
+                      <div className="mt-3 space-y-2 text-sm text-red-900">
+                        <div><span className="font-semibold text-red-900">Payment dispute:</span> PayPal has disputed the payment of $355.</div>
+                        <div><span className="font-semibold text-red-900">Demurrage charge:</span> The demurrage payment was cancelled by PayPal.</div>
+                        <div><span className="font-semibold text-red-900">Action required:</span> Please settle the outstanding demurrage charge to remove the hold from your shipment.</div>
+                        <div><span className="font-semibold text-red-900">Deadline:</span> To avoid a permanent hold, please transfer the demurrage charges to the account below before 14 September.</div>
                       </div>
-                      <div className="mt-4 rounded-md border border-red-200 bg-white p-3 text-sm text-red-900">
-                        <div className="font-bold">DTDC LOGISTICS</div>
+                      <div className="mt-4 rounded-md border border-red-300 bg-white p-3 text-sm text-red-950">
+                        <div className="text-xs font-bold uppercase tracking-wider text-red-700">Payment instructions</div>
+                        <div className="mt-2 font-bold">DTDC LOGISTICS</div>
                         <div className="mt-1">Account number: 200002987344</div>
                         <div>Routing number: 064209588</div>
                       </div>
