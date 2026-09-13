@@ -262,7 +262,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                     </div>
                   </li>
                 )}
-                {shipment.delivery_date_request_status === 'none' || shipment.delivery_date_request_status === 'rejected' ? (
+                {!isOnHold && (shipment.delivery_date_request_status === 'none' || shipment.delivery_date_request_status === 'rejected' ? (
                   <li className="flex gap-3 rounded-lg border border-navy/15 bg-navy/5 p-3 -mx-1">
                     <CalendarDays className="h-4 w-4 mt-0.5 text-navy shrink-0" />
                     <div className="flex-1">
@@ -317,7 +317,7 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
                       </div>
                     </div>
                   </li>
-                ) : null}
+                ) : null)}
                 {milestones.slice().reverse().map((m) => {
                   const isCharge = m.status_text.startsWith("Additional charges raised");
                   return (
