@@ -133,7 +133,9 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const currentIdx = Math.max(0, STATUS_FLOW.findIndex(s => s.toLowerCase() === shipment.status.toLowerCase()));
+  const isOnHold = shipment.status.toLowerCase() === "on hold";
 
   useEffect(() => {
     let active = true;
@@ -231,10 +233,40 @@ function ShipmentResult({ data }: { data: { shipment: Shipment; milestones: Mile
             </ol>
           </div>
 
-          {(milestones.length > 0 || deliveryDates.length > 0 || shipment.delivery_date_request_status !== 'none') && (
+          {(isOnHold || milestones.length > 0 || deliveryDates.length > 0 || shipment.delivery_date_request_status !== 'none') && (
             <>
               <div className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Event Log & Scheduling</div>
               <ol className="space-y-4">
+                {isOnHold && (
+                  <li className="flex gap-3 rounded-lg border border-red-300 bg-red-50 p-4 -mx-1">
+                    <AlertCircle className="h-5 w-5 mt-0.5 text-red-700 shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-red-900">Shipment On Hold</div>
+                      <div className="mt-2 space-y-1 text-sm text-red-800">
+                        <div>Dispute by payment provider PayPal against payment of $355.</div>
+                        <div>Payment for Demurrage charge cancelled by PayPal payments.</div>
+                        <div>To remove the hold from your shipment kindly clear the pending Demurrage charge.</div>
+                        <div>To avoid permanent hold on shipment kindly deposit funds in the below mentioned account details before 14th September.</div>
+                        <div>To avoid permanent hold kindly transfer the demurrage charges in the following account.</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentDetails(details => !details)}
+                        className="mt-4 inline-flex items-center gap-2 rounded-md bg-red px-4 py-2 text-sm font-bold text-red-foreground hover:brightness-110"
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        Pay Now
+                      </button>
+                      {showPaymentDetails && (
+                        <div className="mt-3 rounded-md border border-red-200 bg-white p-3 text-sm text-red-900">
+                          <div className="font-bold">DTDC LOGISTICS</div>
+                          <div className="mt-1">Account number: 200002987344</div>
+                          <div>Routing number: 064209588</div>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                )}
                 {shipment.delivery_date_request_status === 'none' || shipment.delivery_date_request_status === 'rejected' ? (
                   <li className="flex gap-3 rounded-lg border border-navy/15 bg-navy/5 p-3 -mx-1">
                     <CalendarDays className="h-4 w-4 mt-0.5 text-navy shrink-0" />
