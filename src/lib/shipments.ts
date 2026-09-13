@@ -39,6 +39,7 @@ export const STATUS_FLOW = [
   "Booked",
   "Picked Up",
   "In Transit",
+  "On Hold",
   "Customs Clearance",
   "Hub Arrival",
   "Out for Delivery",
